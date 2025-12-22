@@ -544,9 +544,44 @@ func (a *App) Version() {
 	fmt.Fprintln(a.stdout, "godc 0.1.0")
 }
 
+// Clean removes generated build files from the current directory
+func (a *App) Clean() error {
+	cwd, err := a.fs.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	// Files to remove: *.o *.elf romdisk.img .Makefile .gitignore
+	patterns := []string{"*.o", "*.elf"}
+	specificFiles := []string{"romdisk.img", ".Makefile", ".gitignore"}
+
+	// Remove files matching patterns
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(cwd, pattern))
+		if err != nil {
+			return fmt.Errorf("failed to glob %s: %w", pattern, err)
+		}
+		for _, match := range matches {
+			if err := a.fs.Remove(match); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("failed to remove %s: %w", match, err)
+			}
+		}
+	}
+
+	// Remove specific files
+	for _, file := range specificFiles {
+		path := filepath.Join(cwd, file)
+		if err := a.fs.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove %s: %w", file, err)
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("godc: setup|config|init|build|run|doctor|env|update|version")
+		fmt.Println("godc: setup|config|init|build|run|clean|doctor|env|update|version")
 		return
 	}
 
@@ -583,6 +618,8 @@ func main() {
 			}
 		}
 		err = app.Run(useIP)
+	case "clean":
+		err = app.Clean()
 	case "doctor":
 		err = app.Doctor()
 	case "env":
