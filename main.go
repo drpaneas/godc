@@ -313,8 +313,21 @@ func (a *App) Setup() error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	n, copyErr := io.Copy(out, resp.Body)
+	// Create progress reader to show download progress
+	total := resp.ContentLength
+	pr := &progressReader{
+		reader:  resp.Body,
+		total:   total,
+		writer:  a.stdout,
+		started: time.Now(),
+	}
+
+	n, copyErr := io.Copy(out, pr)
 	closeErr := out.Close()
+
+	// Clear progress line and show final size
+	fmt.Fprintf(a.stdout, "\r%s\r", strings.Repeat(" ", 60))
+
 	if closeErr != nil {
 		if copyErr != nil {
 			return fmt.Errorf("download failed: %v; close failed: %w", copyErr, closeErr)
@@ -324,7 +337,7 @@ func (a *App) Setup() error {
 	if copyErr != nil {
 		return fmt.Errorf("failed to download: %w", copyErr)
 	}
-	fmt.Fprintf(a.stdout, "%dMB\n", n/1024/1024)
+	fmt.Fprintf(a.stdout, "Downloaded %dMB\n", n/1024/1024)
 
 	fmt.Fprintln(a.stdout, "Extracting...")
 	if err := a.fs.MkdirAll(p, 0755); err != nil {
@@ -475,7 +488,7 @@ func (a *App) Doctor() error {
 		} else {
 			missing = append(missing, check.name)
 		}
-		fmt.Fprintln(a.stdout, status, check.name)
+		fmt.Fprintf(a.stdout, "%s %-12s %s\n", status, check.name, check.path)
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing components: %s", strings.Join(missing, ", "))
@@ -647,4 +660,35 @@ func execTemplate(tmpl string, data map[string]string) string {
 		panic(fmt.Sprintf("template execution failed: %v", err))
 	}
 	return b.String()
+}
+
+// progressReader wraps an io.Reader and displays download progress
+type progressReader struct {
+	reader  io.Reader
+	total   int64
+	current int64
+	writer  io.Writer
+	started time.Time
+	lastPct int
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.reader.Read(p)
+	pr.current += int64(n)
+
+	// Calculate and display progress
+	if pr.total > 0 {
+		pct := int(pr.current * 100 / pr.total)
+		// Only update display when percentage changes
+		if pct != pr.lastPct {
+			pr.lastPct = pct
+			barWidth := 30
+			filled := barWidth * pct / 100
+			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+			mb := pr.current / 1024 / 1024
+			totalMB := pr.total / 1024 / 1024
+			fmt.Fprintf(pr.writer, "\r[%s] %3d%% (%dMB/%dMB)", bar, pct, mb, totalMB)
+		}
+	}
+	return n, err
 }
