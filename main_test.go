@@ -1169,6 +1169,72 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+// --- Tests for Clean ---
+
+func TestClean(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+
+	// Create files that should be removed
+	fs.files[filepath.Join("/home/testuser/myproject", "main.o")] = []byte("object")
+	fs.files[filepath.Join("/home/testuser/myproject", "other.o")] = []byte("object")
+	fs.files[filepath.Join("/home/testuser/myproject", "game.elf")] = []byte("elf")
+	fs.files[filepath.Join("/home/testuser/myproject", "romdisk.img")] = []byte("romdisk")
+	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("makefile")
+	fs.files[filepath.Join("/home/testuser/myproject", ".gitignore")] = []byte("gitignore")
+
+	// Create a file that should NOT be removed
+	fs.files[filepath.Join("/home/testuser/myproject", "main.go")] = []byte("source")
+
+	err := app.Clean()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check that specific files were removed
+	filesToRemove := []string{
+		filepath.Join("/home/testuser/myproject", "romdisk.img"),
+		filepath.Join("/home/testuser/myproject", ".Makefile"),
+		filepath.Join("/home/testuser/myproject", ".gitignore"),
+	}
+	for _, f := range filesToRemove {
+		if _, ok := fs.files[f]; ok {
+			t.Errorf("expected file %s to be removed", f)
+		}
+	}
+
+	// Check that main.go was NOT removed
+	if _, ok := fs.files[filepath.Join("/home/testuser/myproject", "main.go")]; !ok {
+		t.Error("main.go should not be removed")
+	}
+}
+
+func TestCleanNoFilesToRemove(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+
+	// No build artifacts exist - should still succeed
+	err := app.Clean()
+	if err != nil {
+		t.Fatalf("unexpected error when no files to clean: %v", err)
+	}
+}
+
+func TestCleanGetwdError(t *testing.T) {
+	app, _, _, _, _ := newTestApp()
+
+	errFS := &errorFS{err: errors.New("getwd error")}
+	app.fs = errFS
+
+	err := app.Clean()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "working directory") {
+		t.Errorf("expected working directory error, got: %v", err)
+	}
+}
+
 // --- Tests for execTemplate ---
 
 func TestExecTemplate(t *testing.T) {
