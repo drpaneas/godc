@@ -329,9 +329,11 @@ func (a *App) Setup() error {
 	a.cfg.Path = p
 
 	lib := filepath.Join(p, "libgodc")
-	fmt.Fprintln(a.stdout, "Cloning...")
-	if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
-		return fmt.Errorf("failed to clone libgodc: %w", err)
+	if _, err := a.fs.Stat(lib); os.IsNotExist(err) {
+		fmt.Fprintln(a.stdout, "Cloning...")
+		if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
+			return fmt.Errorf("failed to clone libgodc: %w", err)
+		}
 	}
 
 	e := a.env()
