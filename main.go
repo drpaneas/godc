@@ -179,14 +179,17 @@ func (a *App) Init() error {
 	}
 	name := filepath.Base(cwd)
 
+	// Determine kos replace path: prefer local, fallback to remote
+	kosReplace := a.getKosReplacePath()
+
 	templates := []struct {
 		filename string
 		content  string
 		always   bool // always overwrite
 	}{
-		{".Makefile", execTemplate(mkTmpl, name), false},
+		{".Makefile", execTemplate(mkTmpl, map[string]string{"Name": name, "Module": name}), false},
 		{".gitignore", giTmpl, false},
-		{"go.mod", execTemplate(modTmpl, name), true}, // always overwrite to ensure correct module name
+		{"go.mod", execTemplate(modTmpl, map[string]string{"Name": name, "Module": name, "KosReplace": kosReplace}), true}, // always overwrite to ensure correct module name
 	}
 
 	for _, t := range templates {
@@ -207,7 +210,23 @@ func (a *App) Init() error {
 			}
 		}
 	}
+
+	// Run go mod tidy to resolve dependencies
+	if err := a.sh("go", []string{"mod", "tidy"}, cwd, a.env()); err != nil {
+		return fmt.Errorf("failed to run go mod tidy: %w", err)
+	}
+
 	return nil
+}
+
+// getKosReplacePath returns the path for the kos replace directive
+// It prefers local path if it exists, otherwise returns remote path
+func (a *App) getKosReplacePath() string {
+	localPath := filepath.Join(a.cfg.Path, "libgodc", "kos")
+	if _, err := a.fs.Stat(localPath); err == nil {
+		return localPath
+	}
+	return "github.com/drpaneas/libgodc/kos latest"
 }
 
 // Build builds the current project
@@ -583,11 +602,11 @@ func main() {
 	}
 }
 
-// execTemplate executes a template with the given name
-func execTemplate(tmpl, name string) string {
+// execTemplate executes a template with the given data
+func execTemplate(tmpl string, data map[string]string) string {
 	var b bytes.Buffer
 	t := template.Must(template.New("").Parse(tmpl))
-	if err := t.Execute(&b, map[string]string{"Name": name, "Module": name}); err != nil {
+	if err := t.Execute(&b, data); err != nil {
 		panic(fmt.Sprintf("template execution failed: %v", err))
 	}
 	return b.String()

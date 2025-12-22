@@ -581,9 +581,9 @@ func TestBuildCallsInitIfNoMakefile(t *testing.T) {
 		t.Error(".Makefile should be created by init")
 	}
 
-	// make should still be called
-	if len(runner.calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(runner.calls))
+	// go mod tidy (from Init) + make should be called
+	if len(runner.calls) != 2 {
+		t.Fatalf("expected 2 calls (go mod tidy + make), got %d", len(runner.calls))
 	}
 }
 
@@ -1173,7 +1173,7 @@ func TestVersion(t *testing.T) {
 
 func TestExecTemplate(t *testing.T) {
 	tmpl := "module {{.Module}}\nname={{.Name}}"
-	result := execTemplate(tmpl, "myapp")
+	result := execTemplate(tmpl, map[string]string{"Name": "myapp", "Module": "myapp"})
 
 	if !strings.Contains(result, "module myapp") {
 		t.Errorf("expected module myapp, got: %s", result)
