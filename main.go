@@ -114,12 +114,37 @@ func (a *App) load() (*cfg, error) {
 		c.IP = "192.168.2.203"
 	}
 	if c.Emu == "" {
-		c.Emu = "flycast"
-		if runtime.GOOS == "darwin" {
-			c.Emu = "/Applications/Flycast.app/Contents/MacOS/Flycast"
-		}
+		c.Emu = findEmulator()
 	}
 	return &c, nil
+}
+
+// findEmulator returns the best available Dreamcast emulator
+// Priority: flycast (with macOS app bundle check) > lxdream
+func findEmulator() string {
+	// On macOS, check for Flycast.app first
+	if runtime.GOOS == "darwin" {
+		macApp := "/Applications/Flycast.app/Contents/MacOS/Flycast"
+		if _, err := os.Stat(macApp); err == nil {
+			return macApp
+		}
+	}
+
+	// Check for flycast in PATH
+	if _, err := exec.LookPath("flycast"); err == nil {
+		return "flycast"
+	}
+
+	// Fallback to lxdream
+	if _, err := exec.LookPath("lxdream"); err == nil {
+		return "lxdream"
+	}
+
+	// Default to flycast even if not found (user can install later)
+	if runtime.GOOS == "darwin" {
+		return "/Applications/Flycast.app/Contents/MacOS/Flycast"
+	}
+	return "flycast"
 }
 
 func (a *App) save() error {
@@ -709,3 +734,4 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 	}
 	return n, err
 }
+
