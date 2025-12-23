@@ -434,11 +434,11 @@ func (a *App) Setup() error {
 		var writeErr error
 		if strings.Contains(shell, "fish") {
 			// Fish shell uses different syntax
-			_, writeErr = fmt.Fprintf(rcFile, "\n# godc - Dreamcast Go toolchain\nset -gx PATH \"%s\" $PATH\nsource \"%s\"\n",
+			_, writeErr = fmt.Fprintf(rcFile, "\n# godc - Dreamcast Go toolchain\nset -gx PATH \"%s\" $PATH\nsource \"%s\" > /dev/null 2>&1\n",
 				filepath.Join(p, "sh-elf", "bin"),
 				filepath.Join(p, "kos", "environ.sh"))
 		} else {
-			_, writeErr = fmt.Fprintf(rcFile, "\n# godc - Dreamcast Go toolchain\nexport PATH=\"%s:$PATH\"\nsource \"%s\"\n",
+			_, writeErr = fmt.Fprintf(rcFile, "\n# godc - Dreamcast Go toolchain\nexport PATH=\"%s:$PATH\"\nsource \"%s\" > /dev/null 2>&1\n",
 				filepath.Join(p, "sh-elf", "bin"),
 				filepath.Join(p, "kos", "environ.sh"))
 		}
