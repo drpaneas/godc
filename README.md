@@ -21,6 +21,14 @@ godc env    # Show environment info (optional)
 
 This installs to `~/dreamcast` and updates your shell config.
 
+```shell
+KallistiOS environment loaded:
+  KOS_BASE:    $HOME/dreamcast/kos
+  KOS_CC_BASE: $HOME/dreamcast/sh-elf
+  KOS_PORTS:   $HOME/dreamcast/kos-ports
+  GCC version: 15.1.0
+```
+
 ## Usage
 
 ```bash
