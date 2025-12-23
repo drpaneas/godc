@@ -606,9 +606,9 @@ func (a *App) Clean() error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	// Files to remove: *.o *.elf romdisk.img .Makefile
+	// Files to remove: *.o *.elf romdisk.img .Makefile go.mod go.sum
 	patterns := []string{"*.o", "*.elf"}
-	specificFiles := []string{"romdisk.img", ".Makefile"}
+	specificFiles := []string{"romdisk.img", ".Makefile", "go.mod", "go.sum"}
 
 	// Remove files matching patterns
 	for _, pattern := range patterns {

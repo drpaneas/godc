@@ -1181,6 +1181,8 @@ func TestClean(t *testing.T) {
 	fs.files[filepath.Join("/home/testuser/myproject", "game.elf")] = []byte("elf")
 	fs.files[filepath.Join("/home/testuser/myproject", "romdisk.img")] = []byte("romdisk")
 	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("makefile")
+	fs.files[filepath.Join("/home/testuser/myproject", "go.mod")] = []byte("module test")
+	fs.files[filepath.Join("/home/testuser/myproject", "go.sum")] = []byte("checksum")
 
 	// Create files that should NOT be removed
 	fs.files[filepath.Join("/home/testuser/myproject", "main.go")] = []byte("source")
@@ -1195,6 +1197,8 @@ func TestClean(t *testing.T) {
 	filesToRemove := []string{
 		filepath.Join("/home/testuser/myproject", "romdisk.img"),
 		filepath.Join("/home/testuser/myproject", ".Makefile"),
+		filepath.Join("/home/testuser/myproject", "go.mod"),
+		filepath.Join("/home/testuser/myproject", "go.sum"),
 	}
 	for _, f := range filesToRemove {
 		if _, ok := fs.files[f]; ok {
