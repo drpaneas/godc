@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -483,7 +484,23 @@ func (a *App) Doctor() error {
 	var missing []string
 	for _, check := range checks {
 		status := "✗"
-		if _, err := a.fs.Stat(check.path); err == nil {
+		found := false
+
+		// For emulator, also check PATH if not an absolute path
+		if check.name == "emulator" && !filepath.IsAbs(check.path) {
+			if _, err := exec.LookPath(check.path); err == nil {
+				found = true
+			}
+		}
+
+		// Check if file exists at path
+		if !found {
+			if _, err := a.fs.Stat(check.path); err == nil {
+				found = true
+			}
+		}
+
+		if found {
 			status = "✓"
 		} else {
 			missing = append(missing, check.name)

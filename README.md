@@ -61,6 +61,6 @@ IP = "192.168.2.203"
 
 ## Platforms
 
-- macOS (arm64, amd64)
+- macOS (arm64)
 - Linux (amd64)
 
