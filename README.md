@@ -1,6 +1,7 @@
 # godc
 
 CLI for building Go programs for Sega Dreamcast.
+It uses [pre-built KOS](https://github.com/drpaneas/dreamcast-toolchain-builds) ready for coding.
 
 ## Install
 
@@ -13,7 +14,9 @@ go install github.com/drpaneas/godc@latest
 Download and install the Dreamcast toolchain:
 
 ```bash
-godc setup
+godc setup  # Download and install the libraries
+godc doctor # Check installation (optional)
+godc env    # Show environment info (optional)
 ```
 
 This installs to `~/dreamcast` and updates your shell config.
@@ -21,35 +24,19 @@ This installs to `~/dreamcast` and updates your shell config.
 ## Usage
 
 ```bash
-# Initialize a project
-godc init
-
-# Build
-godc build
-
-# Build to specific output
-godc build -o game.elf
-
-# Run in emulator
-godc run
-
-# Run on hardware via dc-tool-ip
-godc run --ip
-
-# Check installation
-godc doctor
-
-# Configure paths/emulator/IP
-godc config
-
-# Update libgodc
-godc update
-
-# Show environment info
-godc env
+mkdir my_game; cd my_game # Create a directory to work
+godc init     # Initialize it
+vim main.go   # Write you code
+godc build    # Build
+godc run      # Run in emulator
+godc run --ip # Run on hardware via dc-tool-ip
 ```
 
-## Configuration
+## Custom Configuration (optional)
+
+```bash
+godc config # Configure emulators, IP Addresses etc
+```
 
 Config file: `~/.config/godc/config.toml`
 
@@ -58,9 +45,3 @@ Path = "/home/user/dreamcast"
 Emu = "flycast"
 IP = "192.168.2.203"
 ```
-
-## Platforms
-
-- macOS (arm64)
-- Linux (amd64)
-
