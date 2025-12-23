@@ -1249,6 +1249,133 @@ func TestExecTemplate(t *testing.T) {
 	}
 }
 
+// --- Tests for progressReader ---
+
+func TestProgressReader(t *testing.T) {
+	data := []byte("hello world, this is test data for progress reader")
+	reader := bytes.NewReader(data)
+	var output bytes.Buffer
+
+	pr := &progressReader{
+		reader:  reader,
+		total:   int64(len(data)),
+		writer:  &output,
+		started: time.Now(),
+	}
+
+	// Read all data
+	buf := make([]byte, 1024)
+	totalRead := 0
+	for {
+		n, err := pr.Read(buf)
+		totalRead += n
+		if err != nil {
+			break
+		}
+	}
+
+	if totalRead != len(data) {
+		t.Errorf("expected to read %d bytes, got %d", len(data), totalRead)
+	}
+
+	if pr.current != int64(len(data)) {
+		t.Errorf("expected current to be %d, got %d", len(data), pr.current)
+	}
+}
+
+func TestProgressReaderSmallChunks(t *testing.T) {
+	data := make([]byte, 1000)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	reader := bytes.NewReader(data)
+	var output bytes.Buffer
+
+	pr := &progressReader{
+		reader:  reader,
+		total:   int64(len(data)),
+		writer:  &output,
+		started: time.Now(),
+	}
+
+	// Read in small chunks
+	buf := make([]byte, 100)
+	totalRead := 0
+	for {
+		n, err := pr.Read(buf)
+		totalRead += n
+		if err != nil {
+			break
+		}
+	}
+
+	if totalRead != len(data) {
+		t.Errorf("expected to read %d bytes, got %d", len(data), totalRead)
+	}
+
+	// Should have printed progress (100% at minimum)
+	if pr.lastPct != 100 {
+		t.Errorf("expected lastPct to be 100, got %d", pr.lastPct)
+	}
+}
+
+func TestProgressReaderUnknownSize(t *testing.T) {
+	data := []byte("test data")
+	reader := bytes.NewReader(data)
+	var output bytes.Buffer
+
+	pr := &progressReader{
+		reader:  reader,
+		total:   0, // Unknown size
+		writer:  &output,
+		started: time.Now(),
+	}
+
+	buf := make([]byte, 1024)
+	n, _ := pr.Read(buf)
+
+	if n != len(data) {
+		t.Errorf("expected to read %d bytes, got %d", len(data), n)
+	}
+
+	// With unknown size, no progress should be printed
+	if output.Len() > 0 {
+		t.Errorf("expected no output for unknown size, got: %s", output.String())
+	}
+}
+
+// --- Tests for findEmulator ---
+
+func TestFindEmulatorReturnsNonEmpty(t *testing.T) {
+	result := findEmulator()
+	if result == "" {
+		t.Error("findEmulator should never return empty string")
+	}
+}
+
+func TestFindEmulatorDefaultValues(t *testing.T) {
+	result := findEmulator()
+
+	// Should return one of the expected values
+	validValues := []string{
+		"flycast",
+		"lxdream",
+		"/Applications/Flycast.app/Contents/MacOS/Flycast",
+	}
+
+	found := false
+	for _, v := range validValues {
+		if result == v {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("findEmulator returned unexpected value: %s", result)
+	}
+}
+
 // --- Additional error path tests ---
 
 func TestCfgPathError(t *testing.T) {
