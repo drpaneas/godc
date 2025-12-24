@@ -161,7 +161,7 @@ func (a *App) save() error {
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := toml.NewEncoder(f).Encode(a.cfg); err != nil {
 		return fmt.Errorf("failed to encode config: %w", err)
@@ -286,7 +286,7 @@ func (a *App) Run(useIP bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer a.fs.RemoveAll(tmp)
+	defer func() { _ = a.fs.RemoveAll(tmp) }()
 
 	elf := filepath.Join(tmp, "game.elf")
 	if err := a.Build(elf); err != nil {
@@ -321,14 +321,14 @@ func (a *App) Setup() error {
 	}
 
 	tmp := filepath.Join(a.fs.TempDir(), f)
-	defer a.fs.Remove(tmp)
+	defer func() { _ = a.fs.Remove(tmp) }()
 
-	fmt.Fprintln(a.stdout, "Downloading...")
+	_, _ = fmt.Fprintln(a.stdout, "Downloading...")
 	resp, err := a.http.Get(tcURL + "/" + f)
 	if err != nil {
 		return fmt.Errorf("failed to download toolchain: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed: %s", resp.Status)
@@ -352,7 +352,7 @@ func (a *App) Setup() error {
 	closeErr := out.Close()
 
 	// Clear progress line and show final size
-	fmt.Fprintf(a.stdout, "\r%s\r", strings.Repeat(" ", 60))
+	_, _ = fmt.Fprintf(a.stdout, "\r%s\r", strings.Repeat(" ", 60))
 
 	if closeErr != nil {
 		if copyErr != nil {
@@ -363,9 +363,9 @@ func (a *App) Setup() error {
 	if copyErr != nil {
 		return fmt.Errorf("failed to download: %w", copyErr)
 	}
-	fmt.Fprintf(a.stdout, "Downloaded %dMB\n", n/1024/1024)
+	_, _ = fmt.Fprintf(a.stdout, "Downloaded %dMB\n", n/1024/1024)
 
-	fmt.Fprintln(a.stdout, "Extracting...")
+	_, _ = fmt.Fprintln(a.stdout, "Extracting...")
 	if err := a.fs.MkdirAll(p, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -388,14 +388,14 @@ func (a *App) Setup() error {
 
 	lib := filepath.Join(p, "libgodc")
 	if _, err := a.fs.Stat(lib); os.IsNotExist(err) {
-		fmt.Fprintln(a.stdout, "Cloning...")
+		_, _ = fmt.Fprintln(a.stdout, "Cloning...")
 		if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
 			return fmt.Errorf("failed to clone libgodc: %w", err)
 		}
 	}
 
 	e := a.env()
-	fmt.Fprintln(a.stdout, "Building...")
+	_, _ = fmt.Fprintln(a.stdout, "Building...")
 	if err := a.sh("make", nil, lib, e); err != nil {
 		return fmt.Errorf("failed to build libgodc: %w", err)
 	}
@@ -459,7 +459,7 @@ func (a *App) Setup() error {
 		return err
 	}
 
-	fmt.Fprintln(a.stdout, "✓ Done")
+	_, _ = fmt.Fprintln(a.stdout, "✓ Done")
 	return nil
 }
 
@@ -530,7 +530,7 @@ func (a *App) Doctor() error {
 		} else {
 			missing = append(missing, check.name)
 		}
-		fmt.Fprintf(a.stdout, "%s %-12s %s\n", status, check.name, check.path)
+		_, _ = fmt.Fprintf(a.stdout, "%s %-12s %s\n", status, check.name, check.path)
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing components: %s", strings.Join(missing, ", "))
@@ -543,7 +543,7 @@ func (a *App) Config() error {
 	r := bufio.NewReader(a.stdin)
 
 	read := func(prompt, defaultVal string) (string, error) {
-		fmt.Fprintf(a.stdout, "%s [%s]: ", prompt, defaultVal)
+		_, _ = fmt.Fprintf(a.stdout, "%s [%s]: ", prompt, defaultVal)
 		line, err := r.ReadString('\n')
 		if err != nil && err != io.EOF {
 			return "", fmt.Errorf("failed to read input: %w", err)
@@ -591,12 +591,12 @@ func (a *App) Config() error {
 
 // Env prints environment information
 func (a *App) Env() {
-	fmt.Fprintf(a.stdout, "PATH=%s\nKOS=%s\n", a.cfg.Path, a.cfg.kos())
+	_, _ = fmt.Fprintf(a.stdout, "PATH=%s\nKOS=%s\n", a.cfg.Path, a.cfg.kos())
 }
 
 // Version prints the version
 func (a *App) Version() {
-	fmt.Fprintln(a.stdout, "godc 0.1.0")
+	_, _ = fmt.Fprintln(a.stdout, "godc 0.1.0")
 }
 
 // Clean removes generated build files from the current directory
@@ -729,7 +729,7 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 			mb := pr.current / 1024 / 1024
 			totalMB := pr.total / 1024 / 1024
-			fmt.Fprintf(pr.writer, "\r[%s] %3d%% (%dMB/%dMB)", bar, pct, mb, totalMB)
+			_, _ = fmt.Fprintf(pr.writer, "\r[%s] %3d%% (%dMB/%dMB)", bar, pct, mb, totalMB)
 		}
 	}
 	return n, err

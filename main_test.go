@@ -291,12 +291,12 @@ func TestCfgPath(t *testing.T) {
 func TestLoadEmptyConfig(t *testing.T) {
 	// Save and restore KOS_BASE
 	orig := os.Getenv("KOS_BASE")
-	os.Unsetenv("KOS_BASE")
+	_ = os.Unsetenv("KOS_BASE")
 	defer func() {
 		if orig == "" {
-			os.Unsetenv("KOS_BASE")
+			_ = os.Unsetenv("KOS_BASE")
 		} else {
-			os.Setenv("KOS_BASE", orig)
+			_ = os.Setenv("KOS_BASE", orig)
 		}
 	}()
 
@@ -347,12 +347,12 @@ IP = "10.0.0.1"
 func TestLoadWithKOSBaseEnv(t *testing.T) {
 	// Save and restore env
 	orig := os.Getenv("KOS_BASE")
-	os.Setenv("KOS_BASE", "/opt/toolchains/dc/kos")
+	_ = os.Setenv("KOS_BASE", "/opt/toolchains/dc/kos")
 	defer func() {
 		if orig == "" {
-			os.Unsetenv("KOS_BASE")
+			_ = os.Unsetenv("KOS_BASE")
 		} else {
-			os.Setenv("KOS_BASE", orig)
+			_ = os.Setenv("KOS_BASE", orig)
 		}
 	}()
 
@@ -426,8 +426,8 @@ func TestEnvPreservesExistingEnv(t *testing.T) {
 	app.cfg = &cfg{Path: "/dc"}
 
 	// Set a custom env var
-	os.Setenv("MY_CUSTOM_VAR", "test_value")
-	defer os.Unsetenv("MY_CUSTOM_VAR")
+	_ = os.Setenv("MY_CUSTOM_VAR", "test_value")
+	defer func() { _ = os.Unsetenv("MY_CUSTOM_VAR") }()
 
 	env := app.env()
 
