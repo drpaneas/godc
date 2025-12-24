@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="godc.png" alt="godc logo" width="300">
+</p>
+
 # godc
 
 CLI for building Go programs for Sega Dreamcast.
