@@ -1794,7 +1794,6 @@ func TestUpdateMakeBuildError(t *testing.T) {
 	}
 }
 
-
 func TestCleanWithExistingFiles(t *testing.T) {
 	app, fs, _, _, _ := newTestApp()
 	fs.cwd = "/home/testuser/myproject"
@@ -1930,4 +1929,3 @@ func TestLoadConfigReadError(t *testing.T) {
 		t.Fatal("expected error for invalid TOML")
 	}
 }
-
