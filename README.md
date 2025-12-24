@@ -4,6 +4,13 @@
   <img src="godc.png" alt="godc logo" width="300">
 </p>
 
+<p align="center">
+  <a href="https://github.com/drpaneas/godc/actions/workflows/lint.yml"><img src="https://github.com/drpaneas/godc/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://goreportcard.com/report/github.com/drpaneas/godc"><img src="https://goreportcard.com/badge/github.com/drpaneas/godc" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/drpaneas/godc"><img src="https://pkg.go.dev/badge/github.com/drpaneas/godc.svg" alt="Go Reference"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/drpaneas/godc" alt="License"></a>
+</p>
+
 CLI for building Go programs for Sega Dreamcast.
 It uses [libgodc](https://drpaneas.github.io/libgodc/), a minimal Go runtime for the Dreamcast, along with [pre-built KOS](https://github.com/drpaneas/dreamcast-toolchain-builds) ready for coding.
 
