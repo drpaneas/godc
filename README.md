@@ -1,17 +1,20 @@
+# GODC - Go Dreamcast Command Line Tool
+
 <p align="center">
   <img src="godc.png" alt="godc logo" width="300">
 </p>
 
-# godc
-
 CLI for building Go programs for Sega Dreamcast.
-It uses [libgodc](https://drpaneas.github.io/libgodc/) — a minimal Go runtime for the Dreamcast — along with [pre-built KOS](https://github.com/drpaneas/dreamcast-toolchain-builds) ready for coding.
+It uses [libgodc](https://drpaneas.github.io/libgodc/), a minimal Go runtime for the Dreamcast, along with [pre-built KOS](https://github.com/drpaneas/dreamcast-toolchain-builds) ready for coding.
 
 ## Install
 
 ```bash
+# First make sure you have Go properly installed
 go install github.com/drpaneas/godc@latest
 ```
+
+> **Note:** Make sure `$GOBIN` (or `$GOPATH/bin`) is in your `PATH` so that `godc` is available after installation.
 
 ## Setup
 
