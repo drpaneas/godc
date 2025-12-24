@@ -281,7 +281,10 @@ func (a *App) Build(output string) error {
 }
 
 // Run builds and runs the project
-func (a *App) Run(useIP bool) error {
+// Run builds and runs the project
+// If ip is non-empty, uses dc-tool-ip with that IP address
+// If ip is empty, uses the emulator
+func (a *App) Run(ip string) error {
 	tmp, err := a.fs.MkdirTemp("", "godc-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
@@ -293,8 +296,8 @@ func (a *App) Run(useIP bool) error {
 		return err
 	}
 
-	if useIP {
-		return a.sh("dc-tool-ip", []string{"-t", a.cfg.IP, "-x", elf}, "", a.env())
+	if ip != "" {
+		return a.sh("dc-tool-ip", []string{"-t", ip, "-x", elf}, "", a.env())
 	}
 	return a.sh(a.cfg.Emu, []string{elf}, "", a.env())
 }
@@ -666,13 +669,21 @@ func main() {
 		}
 		err = app.Build(out)
 	case "run":
-		useIP := false
-		for _, a := range os.Args[2:] {
-			if a == "--ip" {
-				useIP = true
+		var ip string
+		args := os.Args[2:]
+		for i := 0; i < len(args); i++ {
+			if args[i] == "--ip" {
+				// Check if next arg is an IP address (not another flag)
+				if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+					ip = args[i+1]
+				} else {
+					// Use config IP if no value provided
+					ip = app.cfg.IP
+				}
+				break
 			}
 		}
-		err = app.Run(useIP)
+		err = app.Run(ip)
 	case "clean":
 		err = app.Clean()
 	case "doctor":

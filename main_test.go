@@ -609,7 +609,7 @@ func TestRunWithEmulator(t *testing.T) {
 	fs.cwd = "/home/testuser/myproject"
 	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
 
-	err := app.Run(false)
+	err := app.Run("")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -631,7 +631,7 @@ func TestRunWithIP(t *testing.T) {
 	fs.cwd = "/home/testuser/myproject"
 	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
 
-	err := app.Run(true)
+	err := app.Run("192.168.2.203")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -662,7 +662,7 @@ func TestRunBuildError(t *testing.T) {
 	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
 	runner.errors["make"] = errors.New("build failed")
 
-	err := app.Run(false)
+	err := app.Run("")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -677,7 +677,7 @@ func TestRunEmulatorError(t *testing.T) {
 	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
 	runner.errors["flycast"] = errors.New("emulator failed")
 
-	err := app.Run(false)
+	err := app.Run("")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1463,7 +1463,7 @@ func TestRunMkdirTempError(t *testing.T) {
 	errFS.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
 	app.fs = errFS
 
-	err := app.Run(false)
+	err := app.Run("")
 	if err == nil {
 		t.Fatal("expected error")
 	}
