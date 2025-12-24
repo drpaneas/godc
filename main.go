@@ -297,6 +297,7 @@ func (a *App) Run(ip string) error {
 	}
 
 	if ip != "" {
+		_, _ = fmt.Fprintf(a.stdout, "Uploading to %s...\n", ip)
 		return a.sh("dc-tool-ip", []string{"-t", ip, "-x", elf}, "", a.env())
 	}
 	return a.sh(a.cfg.Emu, []string{elf}, "", a.env())
