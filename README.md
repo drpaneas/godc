@@ -6,6 +6,8 @@
 
 <p align="center">
   <a href="https://github.com/drpaneas/godc/actions/workflows/lint.yml"><img src="https://github.com/drpaneas/godc/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://github.com/drpaneas/godc/actions/workflows/test.yml"><img src="https://github.com/drpaneas/godc/actions/workflows/test.yml/badge.svg" alt="Test"></a>
+  <a href="https://codecov.io/gh/drpaneas/godc"><img src="https://codecov.io/gh/drpaneas/godc/graph/badge.svg" alt="codecov"></a>
   <a href="https://goreportcard.com/report/github.com/drpaneas/godc"><img src="https://goreportcard.com/badge/github.com/drpaneas/godc" alt="Go Report Card"></a>
   <a href="https://pkg.go.dev/github.com/drpaneas/godc"><img src="https://pkg.go.dev/badge/github.com/drpaneas/godc.svg" alt="Go Reference"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/drpaneas/godc" alt="License"></a>
