@@ -1689,3 +1689,245 @@ func TestSetupMakeBuildError(t *testing.T) {
 		t.Errorf("expected build libgodc error, got: %v", err)
 	}
 }
+
+// --- Additional coverage tests ---
+
+func TestGetKosReplacePathLocal(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	app.cfg.Path = "/home/testuser/dreamcast"
+
+	// Create the local kos path
+	localPath := filepath.Join("/home/testuser/dreamcast", "libgodc", "kos")
+	fs.dirs[localPath] = nil
+
+	result := app.getKosReplacePath()
+	if result != localPath {
+		t.Errorf("expected local path %s, got %s", localPath, result)
+	}
+}
+
+func TestGetKosReplacePathRemote(t *testing.T) {
+	app, _, _, _, _ := newTestApp()
+	app.cfg.Path = "/home/testuser/dreamcast"
+
+	// Local path doesn't exist, should return remote
+	result := app.getKosReplacePath()
+	expected := "github.com/drpaneas/libgodc/kos latest"
+	if result != expected {
+		t.Errorf("expected remote path %s, got %s", expected, result)
+	}
+}
+
+func TestInitStatError(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+
+	// Create .gitignore with a stat error (not IsNotExist)
+	fs.statErrors[filepath.Join("/home/testuser/myproject", ".gitignore")] = errors.New("permission denied")
+
+	err := app.Init()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to stat") {
+		t.Errorf("expected stat error, got: %v", err)
+	}
+}
+
+func TestConfigReadError(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	app.cfg.Path = "/dc"
+	app.cfg.Emu = "flycast"
+	app.cfg.IP = "192.168.1.1"
+	fs.homeDir = "/home/testuser"
+
+	// Simulate EOF on first read (empty input uses defaults)
+	app.stdin = strings.NewReader("\n\n\n")
+
+	err := app.Config()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Values should remain as defaults
+	if app.cfg.Path != "/dc" {
+		t.Errorf("expected path /dc, got %s", app.cfg.Path)
+	}
+}
+
+func TestUpdateStatError(t *testing.T) {
+	app, fs, runner, _, _ := newTestApp()
+	app.cfg.Path = "/dc"
+
+	// libgodc exists but stat returns a non-IsNotExist error
+	lib := filepath.Join("/dc", "libgodc")
+	fs.statErrors[lib] = errors.New("permission denied")
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to stat") {
+		t.Errorf("expected stat error, got: %v", err)
+	}
+	_ = runner // silence unused warning
+}
+
+func TestUpdateMakeBuildError(t *testing.T) {
+	app, fs, runner, _, _ := newTestApp()
+	app.cfg.Path = "/dc"
+
+	// libgodc exists
+	lib := filepath.Join("/dc", "libgodc")
+	fs.dirs[lib] = nil
+
+	// make clean succeeds, but make build fails
+	runner.errors["make"] = errors.New("build failed")
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	// Error should be related to make command
+	if !strings.Contains(err.Error(), "failed") {
+		t.Errorf("expected failure error, got: %v", err)
+	}
+}
+
+
+func TestCleanWithExistingFiles(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+
+	// Create multiple .o and .elf files
+	fs.files[filepath.Join("/home/testuser/myproject", "a.o")] = []byte{}
+	fs.files[filepath.Join("/home/testuser/myproject", "b.o")] = []byte{}
+	fs.files[filepath.Join("/home/testuser/myproject", "c.o")] = []byte{}
+	fs.files[filepath.Join("/home/testuser/myproject", "game.elf")] = []byte{}
+	fs.files[filepath.Join("/home/testuser/myproject", "test.elf")] = []byte{}
+
+	err := app.Clean()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All should be removed (though mock doesn't support glob, this tests the path)
+}
+
+func TestSaveEncoderSuccess(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	app.cfg = &cfg{
+		Path: "/custom/path",
+		Emu:  "custom-emu",
+		IP:   "10.0.0.1",
+	}
+	fs.homeDir = "/home/testuser"
+
+	err := app.save()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check config was written
+	cfgPath := filepath.Join("/home/testuser", ".config", "godc", "config.toml")
+	if _, ok := fs.files[cfgPath]; !ok {
+		t.Error("config file should be created")
+	}
+}
+
+func TestBuildStatError(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+
+	// .Makefile exists but stat returns error
+	makefile := filepath.Join("/home/testuser/myproject", ".Makefile")
+	fs.statErrors[makefile] = errors.New("permission denied")
+
+	err := app.Build("")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to stat") {
+		t.Errorf("expected stat error, got: %v", err)
+	}
+}
+
+func TestRunWithEmulatorPath(t *testing.T) {
+	app, fs, runner, _, _ := newTestApp()
+	fs.cwd = "/home/testuser/myproject"
+	app.cfg.Emu = "/usr/local/bin/flycast"
+
+	// .Makefile exists
+	fs.files[filepath.Join("/home/testuser/myproject", ".Makefile")] = []byte("...")
+
+	err := app.Run("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should call emulator
+	found := false
+	for _, call := range runner.calls {
+		if call.name == "/usr/local/bin/flycast" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected emulator to be called")
+	}
+}
+
+func TestConfigWithValues(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	app.cfg = &cfg{
+		Path: "/old/path",
+		Emu:  "old-emu",
+		IP:   "1.1.1.1",
+	}
+	fs.homeDir = "/home/testuser"
+
+	// Provide new values
+	app.stdin = strings.NewReader("/new/path\nnew-emu\n2.2.2.2\n")
+
+	err := app.Config()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if app.cfg.Path != "/new/path" {
+		t.Errorf("expected path /new/path, got %s", app.cfg.Path)
+	}
+	if app.cfg.Emu != "new-emu" {
+		t.Errorf("expected emu new-emu, got %s", app.cfg.Emu)
+	}
+	if app.cfg.IP != "2.2.2.2" {
+		t.Errorf("expected IP 2.2.2.2, got %s", app.cfg.IP)
+	}
+}
+
+func TestLoadConfigReadError(t *testing.T) {
+	app, fs, _, _, _ := newTestApp()
+	fs.homeDir = "/home/testuser"
+
+	// Save and restore KOS_BASE
+	orig := os.Getenv("KOS_BASE")
+	_ = os.Unsetenv("KOS_BASE")
+	defer func() {
+		if orig == "" {
+			_ = os.Unsetenv("KOS_BASE")
+		} else {
+			_ = os.Setenv("KOS_BASE", orig)
+		}
+	}()
+
+	// Config file exists but contains invalid TOML
+	cfgPath := filepath.Join("/home/testuser", ".config", "godc", "config.toml")
+	fs.files[cfgPath] = []byte("invalid toml {{{{")
+
+	_, err := app.load()
+	if err == nil {
+		t.Fatal("expected error for invalid TOML")
+	}
+}
+
