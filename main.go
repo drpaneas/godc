@@ -509,43 +509,97 @@ func (a *App) Update() error {
 
 // Doctor checks the installation status
 func (a *App) Doctor() error {
-	checks := []struct {
+	binDir := filepath.Join(a.cfg.Path, "sh-elf", "bin")
+
+	// Toolchain components (required for building)
+	toolchainChecks := []struct {
+		name string
+		path string
+	}{
+		{"sh-elf-gcc", filepath.Join(binDir, "sh-elf-gcc")},
+		{"sh-elf-gccgo", filepath.Join(binDir, "sh-elf-gccgo")},
+		{"sh-elf-ld", filepath.Join(binDir, "sh-elf-ld")},
+		{"sh-elf-ar", filepath.Join(binDir, "sh-elf-ar")},
+	}
+
+	// KOS components (required for Dreamcast development)
+	kosChecks := []struct {
 		name string
 		path string
 	}{
 		{"kos", a.cfg.kos()},
-		{"libgodc", filepath.Join(a.cfg.kos(), "lib", "libgodc.a")},
-		{"sh-elf-gccgo", filepath.Join(a.cfg.Path, "sh-elf", "bin", "sh-elf-gccgo")},
 		{"kos-cc", filepath.Join(a.cfg.kos(), "utils", "build_wrappers", "kos-cc")},
-		{"emulator", a.cfg.Emu},
+		{"libgodc", filepath.Join(a.cfg.kos(), "lib", "libgodc.a")},
 	}
 
+	// System tools (should be in PATH)
+	systemTools := []string{"make", "git"}
+
 	var missing []string
-	for _, check := range checks {
+
+	// Check toolchain
+	_, _ = fmt.Fprintln(a.stdout, "Toolchain:")
+	for _, check := range toolchainChecks {
 		status := "✗"
-		found := false
-
-		// For emulator, also check PATH if not an absolute path
-		if check.name == "emulator" && !filepath.IsAbs(check.path) {
-			if _, err := exec.LookPath(check.path); err == nil {
-				found = true
-			}
-		}
-
-		// Check if file exists at path
-		if !found {
-			if _, err := a.fs.Stat(check.path); err == nil {
-				found = true
-			}
-		}
-
-		if found {
+		if _, err := a.fs.Stat(check.path); err == nil {
 			status = "✓"
 		} else {
 			missing = append(missing, check.name)
 		}
-		_, _ = fmt.Fprintf(a.stdout, "%s %-12s %s\n", status, check.name, check.path)
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
 	}
+
+	// Check KOS
+	_, _ = fmt.Fprintln(a.stdout, "KOS:")
+	for _, check := range kosChecks {
+		status := "✗"
+		if _, err := a.fs.Stat(check.path); err == nil {
+			status = "✓"
+		} else {
+			missing = append(missing, check.name)
+		}
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+	}
+
+	// Check system tools
+	_, _ = fmt.Fprintln(a.stdout, "System tools:")
+	for _, tool := range systemTools {
+		status := "✗"
+		path := tool
+		if p, err := exec.LookPath(tool); err == nil {
+			status = "✓"
+			path = p
+		} else {
+			missing = append(missing, tool)
+		}
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, tool, path)
+	}
+
+	// Check emulator
+	_, _ = fmt.Fprintln(a.stdout, "Emulator:")
+	emuStatus := "✗"
+	emuPath := a.cfg.Emu
+	if filepath.IsAbs(a.cfg.Emu) {
+		if _, err := a.fs.Stat(a.cfg.Emu); err == nil {
+			emuStatus = "✓"
+		}
+	} else {
+		if p, err := exec.LookPath(a.cfg.Emu); err == nil {
+			emuStatus = "✓"
+			emuPath = p
+		}
+	}
+	if emuStatus == "✗" {
+		missing = append(missing, "emulator")
+	}
+	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", emuStatus, "emulator", emuPath)
+
+	// Show configuration
+	_, _ = fmt.Fprintln(a.stdout, "Configuration:")
+	_, _ = fmt.Fprintf(a.stdout, "  Path:          %s\n", a.cfg.Path)
+	_, _ = fmt.Fprintf(a.stdout, "  KOS_BASE:      %s\n", a.cfg.kos())
+	_, _ = fmt.Fprintf(a.stdout, "  KOS_CC_BASE:   %s\n", filepath.Join(a.cfg.Path, "sh-elf"))
+
 	if len(missing) > 0 {
 		return fmt.Errorf("missing components: %s", strings.Join(missing, ", "))
 	}
