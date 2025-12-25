@@ -419,11 +419,15 @@ func (a *App) Setup() error {
 	}
 
 	e := a.env()
+	// Pass CC as a Make variable to override any hardcoded compiler in the Makefile
+	ccPath := filepath.Join(p, "sh-elf", "bin", "sh-elf-gcc")
+	makeArgs := []string{"CC=" + ccPath}
+
 	_, _ = fmt.Fprintln(a.stdout, "Building...")
-	if err := a.sh("make", nil, lib, e); err != nil {
+	if err := a.sh("make", makeArgs, lib, e); err != nil {
 		return fmt.Errorf("failed to build libgodc: %w", err)
 	}
-	if err := a.sh("make", []string{"install"}, lib, e); err != nil {
+	if err := a.sh("make", append(makeArgs, "install"), lib, e); err != nil {
 		return fmt.Errorf("failed to install libgodc: %w", err)
 	}
 
@@ -505,13 +509,17 @@ func (a *App) Update() error {
 		}
 	}
 
-	if err := a.sh("make", []string{"-C", lib, "clean"}, "", e); err != nil {
+	// Pass CC as a Make variable to override any hardcoded compiler
+	ccPath := filepath.Join(a.cfg.Path, "sh-elf", "bin", "sh-elf-gcc")
+	ccArg := "CC=" + ccPath
+
+	if err := a.sh("make", []string{"-C", lib, ccArg, "clean"}, "", e); err != nil {
 		return fmt.Errorf("failed to clean libgodc: %w", err)
 	}
-	if err := a.sh("make", []string{"-C", lib}, "", e); err != nil {
+	if err := a.sh("make", []string{"-C", lib, ccArg}, "", e); err != nil {
 		return fmt.Errorf("failed to build libgodc: %w", err)
 	}
-	if err := a.sh("make", []string{"-C", lib, "install"}, "", e); err != nil {
+	if err := a.sh("make", []string{"-C", lib, ccArg, "install"}, "", e); err != nil {
 		return fmt.Errorf("failed to install libgodc: %w", err)
 	}
 	return nil
