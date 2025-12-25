@@ -24,7 +24,8 @@ LIB_PATHS = -L$(KOS_BASE)/lib -L$(KOS_BASE)/addons/lib/dreamcast -L$(KOS_BASE)/.
 # Core libraries (always needed)
 # Note: libparallax requires all image loaders due to internal dependencies
 # Audio streaming libraries: libwav (WAV), libtremor (OGG Vorbis)
-LIBS = -Wl,--whole-archive -lgodcbegin -Wl,--no-whole-archive -lkos -lgodc -lparallax -lkosutils -ljpeg -lpng -lz -lkmg -lwav -ltremor
+# -lm -lc are the math and C standard libraries (required by KOS)
+LIBS = -Wl,--whole-archive -lgodcbegin -Wl,--no-whole-archive -lkos -lgodc -lparallax -lkosutils -ljpeg -lpng -lz -lkmg -lwav -ltremor -lm -lc
 
 # Include project-specific overrides if they exist
 -include godc.mk
