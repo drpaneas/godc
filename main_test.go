@@ -1081,6 +1081,7 @@ func TestDoctor(t *testing.T) {
 	// Set up all required paths to exist for a successful doctor check
 	kosPath := filepath.Join("/dc", "kos")
 	binPath := filepath.Join("/dc", "sh-elf", "bin")
+	libPath := filepath.Join("/dc", "sh-elf", "sh-elf", "lib")
 	fs.dirs[kosPath] = nil
 	fs.files[filepath.Join(kosPath, "lib", "libgodc.a")] = []byte{}
 	fs.files[filepath.Join(kosPath, "utils", "build_wrappers", "kos-cc")] = []byte{}
@@ -1089,6 +1090,9 @@ func TestDoctor(t *testing.T) {
 	fs.files[filepath.Join(binPath, "sh-elf-gccgo")] = []byte{}
 	fs.files[filepath.Join(binPath, "sh-elf-ld")] = []byte{}
 	fs.files[filepath.Join(binPath, "sh-elf-ar")] = []byte{}
+	// Libraries
+	fs.files[filepath.Join(libPath, "libc.a")] = []byte{}
+	fs.files[filepath.Join(libPath, "libm.a")] = []byte{}
 	// Emulator
 	fs.files["/usr/bin/flycast"] = []byte{}
 
@@ -1101,6 +1105,9 @@ func TestDoctor(t *testing.T) {
 	}
 	if !strings.Contains(output, "KOS:") {
 		t.Errorf("expected 'KOS:' section in output: %s", output)
+	}
+	if !strings.Contains(output, "Libraries:") {
+		t.Errorf("expected 'Libraries:' section in output: %s", output)
 	}
 	if !strings.Contains(output, "Configuration:") {
 		t.Errorf("expected 'Configuration:' section in output: %s", output)

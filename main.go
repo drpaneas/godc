@@ -398,6 +398,16 @@ func (a *App) Setup() error {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
+	// Create libc.a symlink if missing (some toolchains only have libg.a)
+	libDir := filepath.Join(p, "sh-elf", "sh-elf", "lib")
+	libcPath := filepath.Join(libDir, "libc.a")
+	libgPath := filepath.Join(libDir, "libg.a")
+	if _, err := a.fs.Stat(libcPath); os.IsNotExist(err) {
+		if _, err := a.fs.Stat(libgPath); err == nil {
+			_ = a.fs.Symlink("libg.a", libcPath)
+		}
+	}
+
 	a.cfg.Path = p
 
 	lib := filepath.Join(p, "libgodc")
@@ -532,6 +542,16 @@ func (a *App) Doctor() error {
 		{"libgodc", filepath.Join(a.cfg.kos(), "lib", "libgodc.a")},
 	}
 
+	// Library checks (required for linking)
+	libDir := filepath.Join(a.cfg.Path, "sh-elf", "sh-elf", "lib")
+	libChecks := []struct {
+		name string
+		path string
+	}{
+		{"libc", filepath.Join(libDir, "libc.a")},
+		{"libm", filepath.Join(libDir, "libm.a")},
+	}
+
 	// System tools (should be in PATH)
 	systemTools := []string{"make", "git"}
 
@@ -552,6 +572,18 @@ func (a *App) Doctor() error {
 	// Check KOS
 	_, _ = fmt.Fprintln(a.stdout, "KOS:")
 	for _, check := range kosChecks {
+		status := "✗"
+		if _, err := a.fs.Stat(check.path); err == nil {
+			status = "✓"
+		} else {
+			missing = append(missing, check.name)
+		}
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+	}
+
+	// Check libraries
+	_, _ = fmt.Fprintln(a.stdout, "Libraries:")
+	for _, check := range libChecks {
 		status := "✗"
 		if _, err := a.fs.Stat(check.path); err == nil {
 			status = "✓"
