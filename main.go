@@ -769,13 +769,13 @@ func (a *App) extractTarGz(archivePath, destDir string, stripComponents int) err
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	var extracted int
@@ -875,13 +875,13 @@ func (a *App) countTarEntries(archivePath string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return 0, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	var count int
@@ -905,13 +905,13 @@ func (a *App) archiveNeedsStrip(archivePath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return false, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
