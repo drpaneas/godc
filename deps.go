@@ -16,6 +16,7 @@ type FileSystem interface {
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	MkdirAll(path string, perm os.FileMode) error
 	Create(name string) (io.WriteCloser, error)
+	Open(name string) (io.ReadCloser, error)
 	OpenFile(name string, flag int, perm os.FileMode) (io.WriteCloser, error)
 	ReadDir(name string) ([]os.DirEntry, error)
 	Remove(name string) error
@@ -24,6 +25,8 @@ type FileSystem interface {
 	TempDir() string
 	UserHomeDir() (string, error)
 	Getwd() (string, error)
+	Chmod(name string, mode os.FileMode) error
+	Symlink(oldname, newname string) error
 }
 
 // CommandRunner abstracts command execution for testing
@@ -62,6 +65,10 @@ func (RealFS) Create(name string) (io.WriteCloser, error) {
 	return os.Create(name)
 }
 
+func (RealFS) Open(name string) (io.ReadCloser, error) {
+	return os.Open(name)
+}
+
 func (RealFS) OpenFile(name string, flag int, perm os.FileMode) (io.WriteCloser, error) {
 	return os.OpenFile(name, flag, perm)
 }
@@ -92,6 +99,14 @@ func (RealFS) Getwd() (string, error) {
 
 func (RealFS) TempDir() string {
 	return os.TempDir()
+}
+
+func (RealFS) Chmod(name string, mode os.FileMode) error {
+	return os.Chmod(name, mode)
+}
+
+func (RealFS) Symlink(oldname, newname string) error {
+	return os.Symlink(oldname, newname)
 }
 
 // RealRunner implements CommandRunner using real exec

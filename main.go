@@ -2,8 +2,10 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	_ "embed"
 	"fmt"
 	"io"
@@ -369,22 +371,21 @@ func (a *App) Setup() error {
 	}
 	_, _ = fmt.Fprintf(a.stdout, "Downloaded %dMB\n", n/1024/1024)
 
-	_, _ = fmt.Fprintln(a.stdout, "Extracting...")
 	if err := a.fs.MkdirAll(p, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	args := []string{"xzf", tmp, "-C", p}
-	tarOutput, err := a.runner.Output("tar", "tzf", tmp)
+	// Check if we need to strip the top-level directory
+	stripComponents := 0
+	needsStrip, err := a.archiveNeedsStrip(tmp)
 	if err != nil {
 		return fmt.Errorf("failed to inspect archive: %w", err)
 	}
-	outStr := string(tarOutput)
-	// Check if kos/ is a top-level directory (starts the output or starts a line)
-	if !strings.HasPrefix(outStr, "kos/") && !strings.Contains(outStr, "\nkos/") {
-		args = append(args, "--strip-components=1")
+	if needsStrip {
+		stripComponents = 1
 	}
-	if err := a.sh("tar", args, "", nil); err != nil {
+
+	if err := a.extractTarGz(tmp, p, stripComponents); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
 
@@ -745,4 +746,183 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 		}
 	}
 	return n, err
+}
+
+// extractTarGz extracts a .tar.gz file to destDir with progress reporting
+// If stripComponents > 0, it removes that many leading path components
+func (a *App) extractTarGz(archivePath, destDir string, stripComponents int) error {
+	// First pass: count total files for progress
+	total, err := a.countTarEntries(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to count archive entries: %w", err)
+	}
+
+	// Second pass: extract with progress
+	f, err := a.fs.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	var extracted int
+	var lastPct int
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar entry: %w", err)
+		}
+
+		// Strip leading path components
+		name := hdr.Name
+		if stripComponents > 0 {
+			parts := strings.Split(name, "/")
+			if len(parts) <= stripComponents {
+				continue // Skip entries that would be stripped entirely
+			}
+			name = strings.Join(parts[stripComponents:], "/")
+		}
+
+		if name == "" {
+			continue
+		}
+
+		target := filepath.Join(destDir, name)
+
+		// Security check: ensure target is within destDir
+		if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(destDir)) {
+			continue // Skip potentially malicious paths
+		}
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := a.fs.MkdirAll(target, os.FileMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", target, err)
+			}
+		case tar.TypeReg:
+			// Ensure parent directory exists
+			if err := a.fs.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory: %w", err)
+			}
+
+			outFile, err := a.fs.Create(target)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", target, err)
+			}
+
+			if _, err := io.Copy(outFile, tr); err != nil {
+				_ = outFile.Close()
+				return fmt.Errorf("failed to write file %s: %w", target, err)
+			}
+			_ = outFile.Close()
+
+			// Set file permissions
+			if err := a.fs.Chmod(target, os.FileMode(hdr.Mode)); err != nil {
+				return fmt.Errorf("failed to set permissions on %s: %w", target, err)
+			}
+		case tar.TypeSymlink:
+			// Ensure parent directory exists
+			if err := a.fs.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory: %w", err)
+			}
+			// Remove existing symlink if present
+			_ = a.fs.Remove(target)
+			if err := a.fs.Symlink(hdr.Linkname, target); err != nil {
+				return fmt.Errorf("failed to create symlink %s: %w", target, err)
+			}
+		}
+
+		extracted++
+		if total > 0 {
+			pct := extracted * 100 / total
+			if pct != lastPct {
+				lastPct = pct
+				barWidth := 30
+				filled := barWidth * pct / 100
+				bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+				_, _ = fmt.Fprintf(a.stdout, "\r[%s] %3d%% (%d/%d files)", bar, pct, extracted, total)
+			}
+		}
+	}
+
+	// Clear progress line
+	_, _ = fmt.Fprintf(a.stdout, "\r%s\r", strings.Repeat(" ", 60))
+	_, _ = fmt.Fprintf(a.stdout, "Extracted %d files\n", extracted)
+
+	return nil
+}
+
+// countTarEntries counts the number of entries in a tar.gz archive
+func (a *App) countTarEntries(archivePath string) (int, error) {
+	f, err := a.fs.Open(archivePath)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return 0, err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	var count int
+	for {
+		_, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		count++
+	}
+	return count, nil
+}
+
+// archiveNeedsStrip checks if the archive needs --strip-components=1
+// Returns true if kos/ is NOT a top-level directory (i.e., it's nested)
+func (a *App) archiveNeedsStrip(archivePath string) (bool, error) {
+	f, err := a.fs.Open(archivePath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return false, err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return false, err
+		}
+
+		// Check if kos/ is at the top level
+		name := hdr.Name
+		if strings.HasPrefix(name, "kos/") || name == "kos" {
+			return false, nil // kos is at top level, no strip needed
+		}
+	}
+
+	// kos/ not found at top level, needs strip
+	return true, nil
 }

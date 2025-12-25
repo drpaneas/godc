@@ -1,7 +1,9 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"io"
 	"net/http"
@@ -12,6 +14,63 @@ import (
 	"testing"
 	"time"
 )
+
+// createTestTarGz creates a minimal valid tar.gz archive for testing
+// containing a kos/ directory so strip-components is not needed
+func createTestTarGz() []byte {
+	return createTestTarGzWithPrefix("")
+}
+
+// createTestTarGzWithPrefix creates a tar.gz archive with an optional prefix directory
+// If prefix is empty, kos/ is at the top level (no strip needed)
+// If prefix is non-empty (e.g., "dc/"), kos/ is nested (strip needed)
+func createTestTarGzWithPrefix(prefix string) []byte {
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+
+	if prefix != "" {
+		// Add prefix directory
+		_ = tw.WriteHeader(&tar.Header{
+			Name:     prefix,
+			Mode:     0755,
+			Typeflag: tar.TypeDir,
+		})
+	}
+
+	// Add kos/ directory
+	_ = tw.WriteHeader(&tar.Header{
+		Name:     prefix + "kos/",
+		Mode:     0755,
+		Typeflag: tar.TypeDir,
+	})
+
+	// Add a file
+	content := []byte("test content")
+	_ = tw.WriteHeader(&tar.Header{
+		Name:     prefix + "kos/test.txt",
+		Mode:     0644,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
+	})
+	_, _ = tw.Write(content)
+
+	// Add sh-elf/ directory and bin
+	_ = tw.WriteHeader(&tar.Header{
+		Name:     prefix + "sh-elf/",
+		Mode:     0755,
+		Typeflag: tar.TypeDir,
+	})
+	_ = tw.WriteHeader(&tar.Header{
+		Name:     prefix + "sh-elf/bin/",
+		Mode:     0755,
+		Typeflag: tar.TypeDir,
+	})
+
+	_ = tw.Close()
+	_ = gw.Close()
+	return buf.Bytes()
+}
 
 // --- Mock implementations ---
 
@@ -113,6 +172,21 @@ func (m *mockFS) Getwd() (string, error) {
 
 func (m *mockFS) TempDir() string {
 	return m.tempDir
+}
+
+func (m *mockFS) Open(name string) (io.ReadCloser, error) {
+	if data, ok := m.files[name]; ok {
+		return io.NopCloser(bytes.NewReader(data)), nil
+	}
+	return nil, os.ErrNotExist
+}
+
+func (m *mockFS) Chmod(name string, mode os.FileMode) error {
+	return nil
+}
+
+func (m *mockFS) Symlink(oldname, newname string) error {
+	return nil
 }
 
 // mockFileInfo implements os.FileInfo
@@ -764,14 +838,15 @@ func TestSetupSuccess(t *testing.T) {
 	app, fs, runner, httpClient, stdout := newTestApp()
 	fs.homeDir = "/home/testuser"
 
-	// Mock tar output to include kos/ to avoid --strip-components
-	runner.outputs["tar tzf "+filepath.Join(fs.TempDir(), tcFiles[runtime.GOOS+"/"+runtime.GOARCH])] = []byte("stuff\nkos/\nmore")
+	// Create a valid tar.gz with kos/ at top level (no strip needed)
+	tarData := createTestTarGz()
 
-	// HTTP response with some content
+	// HTTP response with valid tar.gz content
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(make([]byte, 1024*1024))), // 1MB
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader(tarData)),
+		ContentLength: int64(len(tarData)),
 	}
 
 	err := app.Setup()
@@ -784,21 +859,17 @@ func TestSetupSuccess(t *testing.T) {
 	if !strings.Contains(output, "Downloading") {
 		t.Errorf("expected 'Downloading' in output: %s", output)
 	}
-	if !strings.Contains(output, "Extracting") {
-		t.Errorf("expected 'Extracting' in output: %s", output)
+	if !strings.Contains(output, "Extracted") {
+		t.Errorf("expected 'Extracted' in output: %s", output)
 	}
 	if !strings.Contains(output, "✓ Done") {
 		t.Errorf("expected '✓ Done' in output: %s", output)
 	}
 
-	// Check that commands were called
-	foundTar := false
+	// Check that commands were called (git clone and make, no longer tar)
 	foundGitClone := false
 	foundMake := false
 	for _, call := range runner.calls {
-		if call.name == "tar" {
-			foundTar = true
-		}
 		if call.name == "git" && len(call.args) > 0 && call.args[0] == "clone" {
 			foundGitClone = true
 		}
@@ -806,28 +877,31 @@ func TestSetupSuccess(t *testing.T) {
 			foundMake = true
 		}
 	}
-	if !foundTar {
-		t.Error("expected tar to be called")
-	}
 	if !foundGitClone {
 		t.Error("expected git clone to be called")
 	}
 	if !foundMake {
 		t.Error("expected make to be called")
 	}
+
+	// Check that files were extracted to the filesystem
+	if _, ok := fs.dirs["/home/testuser/dreamcast/kos"]; !ok {
+		t.Error("expected kos directory to be created")
+	}
 }
 
 func TestSetupWithStripComponents(t *testing.T) {
-	app, fs, runner, httpClient, _ := newTestApp()
+	app, fs, _, httpClient, _ := newTestApp()
 	fs.homeDir = "/home/testuser"
 
-	// Mock tar output WITHOUT kos/ to trigger --strip-components
-	runner.outputs["tar tzf "+filepath.Join(fs.TempDir(), tcFiles[runtime.GOOS+"/"+runtime.GOARCH])] = []byte("dreamcast/stuff\ndreamcast/more")
+	// Create a tar.gz with nested kos/ (needs strip)
+	tarData := createTestTarGzWithPrefix("dreamcast/")
 
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader([]byte("content"))),
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader(tarData)),
+		ContentLength: int64(len(tarData)),
 	}
 
 	err := app.Setup()
@@ -835,35 +909,26 @@ func TestSetupWithStripComponents(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check that tar was called with --strip-components
-	for _, call := range runner.calls {
-		if call.name == "tar" {
-			found := false
-			for _, arg := range call.args {
-				if arg == "--strip-components=1" {
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("expected --strip-components=1 in tar args: %v", call.args)
-			}
-			break
-		}
+	// Check that kos/ was extracted at the correct level (strip applied)
+	// The kos directory should be at /home/testuser/dreamcast/kos, not /home/testuser/dreamcast/dreamcast/kos
+	if _, ok := fs.dirs["/home/testuser/dreamcast/kos"]; !ok {
+		t.Error("expected kos directory to be created at correct level after strip")
 	}
 }
 
 func TestSetupWithNestedKosNeedsStrip(t *testing.T) {
-	// Regression test: when kos/ appears nested (e.g., dc/kos/), we still need --strip-components
-	app, fs, runner, httpClient, _ := newTestApp()
+	// Regression test: when kos/ appears nested (e.g., dc/kos/), we still need strip-components
+	app, fs, _, httpClient, _ := newTestApp()
 	fs.homeDir = "/home/testuser"
 
-	// Mock tar output with NESTED kos/ (not top-level) - should still trigger --strip-components
-	runner.outputs["tar tzf "+filepath.Join(fs.TempDir(), tcFiles[runtime.GOOS+"/"+runtime.GOARCH])] = []byte("dc/\ndc/kos/\ndc/kos/utils/\ndc/sh-elf/")
+	// Create a tar.gz with NESTED kos/ (not top-level) - should trigger strip
+	tarData := createTestTarGzWithPrefix("dc/")
 
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader([]byte("content"))),
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader(tarData)),
+		ContentLength: int64(len(tarData)),
 	}
 
 	err := app.Setup()
@@ -871,20 +936,10 @@ func TestSetupWithNestedKosNeedsStrip(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check that tar was called with --strip-components (nested kos/ requires stripping)
-	for _, call := range runner.calls {
-		if call.name == "tar" {
-			found := false
-			for _, arg := range call.args {
-				if arg == "--strip-components=1" {
-					found = true
-				}
-			}
-			if !found {
-				t.Errorf("expected --strip-components=1 for nested kos/, got args: %v", call.args)
-			}
-			break
-		}
+	// Check that kos/ was extracted at the correct level (strip applied)
+	// The kos directory should be at /home/testuser/dreamcast/kos, not /home/testuser/dreamcast/dc/kos
+	if _, ok := fs.dirs["/home/testuser/dreamcast/kos"]; !ok {
+		t.Error("expected kos directory to be created at correct level after strip")
 	}
 }
 
@@ -1493,6 +1548,9 @@ func (e *errorFS) MkdirTemp(dir, pattern string) (string, error) { return "", e.
 func (e *errorFS) TempDir() string                               { return "/tmp" }
 func (e *errorFS) UserHomeDir() (string, error)                  { return "", e.err }
 func (e *errorFS) Getwd() (string, error)                        { return "", e.err }
+func (e *errorFS) Open(name string) (io.ReadCloser, error)       { return nil, e.err }
+func (e *errorFS) Chmod(name string, mode os.FileMode) error     { return e.err }
+func (e *errorFS) Symlink(oldname, newname string) error         { return e.err }
 
 type errorFSCreate struct {
 	*mockFS
@@ -1628,23 +1686,23 @@ func (e *errorFSMkdirAllSetup) MkdirAll(path string, perm os.FileMode) error {
 }
 
 func TestSetupTarError(t *testing.T) {
-	app, fs, runner, httpClient, _ := newTestApp()
+	app, fs, _, httpClient, _ := newTestApp()
 	fs.homeDir = "/home/testuser"
 
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
+	// Use invalid gzip data to trigger extraction error
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader([]byte("content"))),
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader([]byte("invalid gzip content"))),
+		ContentLength: 21,
 	}
-
-	runner.errors["tar"] = errors.New("tar failed")
 
 	err := app.Setup()
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "extract") {
-		t.Errorf("expected extract error, got: %v", err)
+	if !strings.Contains(err.Error(), "extract") && !strings.Contains(err.Error(), "inspect") {
+		t.Errorf("expected extract/inspect error, got: %v", err)
 	}
 }
 
@@ -1652,10 +1710,12 @@ func TestSetupGitCloneError(t *testing.T) {
 	app, fs, runner, httpClient, _ := newTestApp()
 	fs.homeDir = "/home/testuser"
 
+	tarData := createTestTarGz()
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader([]byte("content"))),
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader(tarData)),
+		ContentLength: int64(len(tarData)),
 	}
 
 	runner.errors["git"] = errors.New("git clone failed")
@@ -1673,10 +1733,12 @@ func TestSetupMakeBuildError(t *testing.T) {
 	app, fs, runner, httpClient, _ := newTestApp()
 	fs.homeDir = "/home/testuser"
 
+	tarData := createTestTarGz()
 	url := tcURL + "/" + tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
 	httpClient.responses[url] = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader([]byte("content"))),
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewReader(tarData)),
+		ContentLength: int64(len(tarData)),
 	}
 
 	runner.errors["make"] = errors.New("make failed")
