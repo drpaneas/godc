@@ -40,6 +40,13 @@ var tcFiles = map[string]string{
 	"linux/amd64":  "dreamcast-toolchain-" + tcVer + "-linux-x86_64.tar.gz",
 }
 
+// Build-time variables (injected via -ldflags)
+var (
+	version = "0.1.0"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 // cfg holds the application configuration
 type cfg struct {
 	Path string
@@ -601,7 +608,7 @@ func (a *App) Env() {
 
 // Version prints the version
 func (a *App) Version() {
-	_, _ = fmt.Fprintln(a.stdout, "godc 0.1.0")
+	_, _ = fmt.Fprintf(a.stdout, "godc %s (commit: %s, built: %s)\n", version, commit, date)
 }
 
 // Clean removes generated build files from the current directory

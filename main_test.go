@@ -1219,8 +1219,15 @@ func TestVersion(t *testing.T) {
 
 	app.Version()
 
-	if !strings.Contains(stdout.String(), "godc 0.1.0") {
-		t.Errorf("expected version in output: %s", stdout.String())
+	output := stdout.String()
+	if !strings.Contains(output, "godc") {
+		t.Errorf("expected 'godc' in output: %s", output)
+	}
+	if !strings.Contains(output, "commit:") {
+		t.Errorf("expected 'commit:' in output: %s", output)
+	}
+	if !strings.Contains(output, "built:") {
+		t.Errorf("expected 'built:' in output: %s", output)
 	}
 }
 
