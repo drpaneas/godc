@@ -213,7 +213,7 @@ func (a *App) Init() error {
 		content  string
 		always   bool // always overwrite
 	}{
-		{".Makefile", execTemplate(mkTmpl, map[string]string{"Name": name, "Module": name}), false},
+		{".Makefile", execTemplate(mkTmpl, map[string]string{"Name": name, "Module": name}), true}, // always overwrite to ensure compiler path is correct
 		{".gitignore", giTmpl, false},
 		{"go.mod", execTemplate(modTmpl, map[string]string{"Name": name, "Module": name, "KosReplace": kosReplace}), true}, // always overwrite to ensure correct module name
 	}

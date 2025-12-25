@@ -10,7 +10,7 @@ else
 GCCGO_OPTS = -O2 -ml -m4-single -fno-split-stack -mfsrra -mfsca
 endif
 
-GCCGO = sh-elf-gccgo $(GCCGO_OPTS) -I$(KOS_BASE)/lib -L$(KOS_BASE)/lib
+GCCGO = $(KOS_CC_BASE)/bin/sh-elf-gccgo $(GCCGO_OPTS) -I$(KOS_BASE)/lib -L$(KOS_BASE)/lib
 OUTPUT ?= $(TARGET).elf
 
 # Auto-detect romdisk directory
