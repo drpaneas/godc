@@ -423,6 +423,26 @@ func (a *App) Setup() error {
 		}
 	}
 
+	// Create GCC symlinks if missing (sh-elf-gcc-15.1.0 -> sh-elf-gcc, etc.)
+	gccPath := filepath.Join(binDir, "sh-elf-gcc")
+	if _, err := a.fs.Stat(gccPath); os.IsNotExist(err) {
+		// Find sh-elf-gcc-* version
+		entries, _ := a.fs.ReadDir(binDir)
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), "sh-elf-gcc-") && !strings.Contains(e.Name(), "ar") && !strings.Contains(e.Name(), "nm") && !strings.Contains(e.Name(), "ranlib") {
+				_ = a.fs.Symlink(e.Name(), gccPath)
+				break
+			}
+		}
+	}
+	gppPath := filepath.Join(binDir, "sh-elf-g++")
+	cppPath := filepath.Join(binDir, "sh-elf-c++")
+	if _, err := a.fs.Stat(gppPath); os.IsNotExist(err) {
+		if _, err := a.fs.Stat(cppPath); err == nil {
+			_ = a.fs.Symlink("sh-elf-c++", gppPath)
+		}
+	}
+
 	a.cfg.Path = p
 
 	lib := filepath.Join(p, "libgodc")
