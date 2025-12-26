@@ -704,6 +704,17 @@ func (a *App) Doctor() error {
 	}
 	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", emuStatus, "emulator", emuPath)
 
+	// Check environment (KOS_CC is required by kos-cc wrapper)
+	_, _ = fmt.Fprintln(a.stdout, "Environment:")
+	kosCC := filepath.Join(a.cfg.Path, "sh-elf", "bin", "sh-elf-gcc")
+	kosCCStatus := "✗"
+	if _, err := a.fs.Stat(kosCC); err == nil {
+		kosCCStatus = "✓"
+	} else {
+		missing = append(missing, "KOS_CC")
+	}
+	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", kosCCStatus, "KOS_CC", kosCC)
+
 	// Show configuration
 	_, _ = fmt.Fprintln(a.stdout, "Configuration:")
 	_, _ = fmt.Fprintf(a.stdout, "  Path:          %s\n", a.cfg.Path)
