@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.4"
+	version = "0.2.5"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -181,7 +181,8 @@ func (a *App) save() error {
 func (a *App) env() []string {
 	k := a.cfg.kos()
 	ccBase := filepath.Join(a.cfg.Path, "sh-elf")
-	gccPath := filepath.Join(ccBase, "bin", "sh-elf-gcc")
+	binDir := filepath.Join(ccBase, "bin")
+	gccPath := filepath.Join(binDir, "sh-elf-gcc")
 	m := map[string]string{
 		"KOS_BASE":    k,
 		"KOS_CC_BASE": ccBase,
@@ -190,7 +191,13 @@ func (a *App) env() []string {
 		"KOS_SUBARCH": "pristine",
 		"CC":          gccPath,
 		"KOS_CC":      gccPath,
-		"PATH":        filepath.Join(ccBase, "bin") + string(os.PathListSeparator) + filepath.Join(k, "utils", "build_wrappers") + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"KOS_AS":      filepath.Join(binDir, "sh-elf-as"),
+		"KOS_LD":      filepath.Join(binDir, "sh-elf-ld"),
+		"KOS_AR":      filepath.Join(binDir, "sh-elf-ar"),
+		"KOS_OBJCOPY": filepath.Join(binDir, "sh-elf-objcopy"),
+		"KOS_STRIP":   filepath.Join(binDir, "sh-elf-strip"),
+		"KOS_AFLAGS":  "-little",
+		"PATH":        binDir + string(os.PathListSeparator) + filepath.Join(k, "utils", "build_wrappers") + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
 	for _, v := range os.Environ() {
 		if i := strings.IndexByte(v, '='); i > 0 {
@@ -710,16 +717,26 @@ func (a *App) Doctor() error {
 	}
 	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", emuStatus, "emulator", emuPath)
 
-	// Check environment (KOS_CC is required by kos-cc wrapper)
+	// Check environment (required by kos-cc wrapper and bin2o)
 	_, _ = fmt.Fprintln(a.stdout, "Environment:")
-	kosCC := filepath.Join(a.cfg.Path, "sh-elf", "bin", "sh-elf-gcc")
-	kosCCStatus := "✗"
-	if _, err := a.fs.Stat(kosCC); err == nil {
-		kosCCStatus = "✓"
-	} else {
-		missing = append(missing, "KOS_CC")
+	envBinDir := filepath.Join(a.cfg.Path, "sh-elf", "bin")
+	envChecks := []struct {
+		name string
+		path string
+	}{
+		{"KOS_CC", filepath.Join(envBinDir, "sh-elf-gcc")},
+		{"KOS_AS", filepath.Join(envBinDir, "sh-elf-as")},
+		{"KOS_LD", filepath.Join(envBinDir, "sh-elf-ld")},
 	}
-	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", kosCCStatus, "KOS_CC", kosCC)
+	for _, check := range envChecks {
+		status := "✗"
+		if _, err := a.fs.Stat(check.path); err == nil {
+			status = "✓"
+		} else {
+			missing = append(missing, check.name)
+		}
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+	}
 
 	// Show configuration
 	_, _ = fmt.Fprintln(a.stdout, "Configuration:")
