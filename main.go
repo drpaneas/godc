@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.3"
+	version = "0.2.4"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -422,6 +422,15 @@ func (a *App) Setup() error {
 				// Create relative symlink: ../sh-elf/bin/tool
 				_ = a.fs.Symlink(filepath.Join("..", "sh-elf", "bin", tool), symlinkPath)
 			}
+		}
+	}
+
+	// Create sh-elf-ld -> sh-elf-ld.bfd if ld doesn't exist but ld.bfd does
+	ldPath := filepath.Join(binDir, "sh-elf-ld")
+	ldBfdPath := filepath.Join(binDir, "sh-elf-ld.bfd")
+	if _, err := a.fs.Stat(ldPath); os.IsNotExist(err) {
+		if _, err := a.fs.Stat(ldBfdPath); err == nil {
+			_ = a.fs.Symlink("sh-elf-ld.bfd", ldPath)
 		}
 	}
 
