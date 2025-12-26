@@ -36,7 +36,6 @@ const repo = "https://github.com/drpaneas/libgodc.git"
 
 var tcFiles = map[string]string{
 	"darwin/arm64": "dreamcast-toolchain-" + tcVer + "-darwin-arm64.tar.gz",
-	"darwin/amd64": "dreamcast-toolchain-" + tcVer + "-darwin-x86_64.tar.gz",
 	"linux/amd64":  "dreamcast-toolchain-" + tcVer + "-linux-x86_64.tar.gz",
 	"linux/arm64":  "dreamcast-toolchain-" + tcVer + "-linux-aarch64.tar.gz",
 }
