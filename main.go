@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.8"
+	version = "0.2.9"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -543,6 +543,36 @@ func (a *App) Setup() error {
 	if _, err := a.fs.Stat(libkosDst); os.IsNotExist(err) {
 		if _, err := a.fs.Stat(libkosSrc); err == nil {
 			_ = a.fs.Symlink(filepath.Join("..", "..", "libgodc", "kos", "libkos.a"), libkosDst)
+		}
+	}
+
+	// Fix broken kos-ports symlinks (they may have absolute paths from build machine)
+	portsLibDir := filepath.Join(p, "kos-ports", "lib")
+	if entries, err := a.fs.ReadDir(portsLibDir); err == nil {
+		for _, entry := range entries {
+			if entry.Type()&os.ModeSymlink != 0 {
+				symlinkPath := filepath.Join(portsLibDir, entry.Name())
+				// Check if symlink is broken (target doesn't exist)
+				if _, err := a.fs.Stat(symlinkPath); err != nil {
+					// Extract library name from symlink name (e.g., libpng.a -> libpng -> png)
+					libName := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), "lib"), ".a")
+					// Try common kos-ports directory patterns
+					possiblePaths := []string{
+						filepath.Join(p, "kos-ports", libName, "inst", "lib", entry.Name()),
+						filepath.Join(p, "kos-ports", "lib"+libName, "inst", "lib", entry.Name()),
+						filepath.Join(p, "kos-ports", "zlib", "inst", "lib", entry.Name()), // special case for libz
+					}
+					for _, srcPath := range possiblePaths {
+						if _, err := a.fs.Stat(srcPath); err == nil {
+							// Remove broken symlink and create correct relative one
+							_ = a.fs.Remove(symlinkPath)
+							relPath, _ := filepath.Rel(portsLibDir, srcPath)
+							_ = a.fs.Symlink(relPath, symlinkPath)
+							break
+						}
+					}
+				}
+			}
 		}
 	}
 
