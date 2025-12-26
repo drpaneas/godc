@@ -459,11 +459,43 @@ func (a *App) Setup() error {
 	makeArgs := []string{"CC=" + ccPath}
 
 	_, _ = fmt.Fprintln(a.stdout, "Building...")
-	if err := a.sh("make", makeArgs, lib, e); err != nil {
-		return fmt.Errorf("failed to build libgodc: %w", err)
+	buildErr := a.sh("make", makeArgs, lib, e)
+	if buildErr != nil {
+		// Build failed, check if pre-built libraries exist in the tarball
+		prebuiltLibgodc := filepath.Join(lib, "libgodc.a")
+		if _, err := a.fs.Stat(prebuiltLibgodc); err == nil {
+			_, _ = fmt.Fprintln(a.stdout, "Build failed, using pre-built libgodc...")
+		} else {
+			return fmt.Errorf("failed to build libgodc: %w", buildErr)
+		}
 	}
-	if err := a.sh("make", append(makeArgs, "install"), lib, e); err != nil {
-		return fmt.Errorf("failed to install libgodc: %w", err)
+
+	// Try make install, or manually copy if it fails
+	installErr := a.sh("make", append(makeArgs, "install"), lib, e)
+	if installErr != nil {
+		// Manual install: copy pre-built libraries to kos/lib
+		kosLib := filepath.Join(p, "kos", "lib")
+		_ = a.fs.MkdirAll(kosLib, 0755)
+
+		// Copy libgodc.a and libgodcbegin.a
+		for _, libName := range []string{"libgodc.a", "libgodcbegin.a"} {
+			src := filepath.Join(lib, libName)
+			dst := filepath.Join(kosLib, libName)
+			if _, err := a.fs.Stat(src); err == nil {
+				if data, err := a.fs.ReadFile(src); err == nil {
+					_ = a.fs.WriteFile(dst, data, 0644)
+				}
+			}
+		}
+
+		// Copy kos bindings
+		kosSrc := filepath.Join(lib, "kos", "libkos.a")
+		kosDst := filepath.Join(kosLib, "libkos.a")
+		if _, err := a.fs.Stat(kosSrc); err == nil {
+			if data, err := a.fs.ReadFile(kosSrc); err == nil {
+				_ = a.fs.WriteFile(kosDst, data, 0644)
+			}
+		}
 	}
 
 	// Update shell rc file
