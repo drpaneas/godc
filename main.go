@@ -408,6 +408,21 @@ func (a *App) Setup() error {
 		}
 	}
 
+	// Create binutils symlinks if missing (older toolchains may not have these)
+	binDir := filepath.Join(p, "sh-elf", "bin")
+	toolsDir := filepath.Join(p, "sh-elf", "sh-elf", "bin")
+	binutilsTools := []string{"ar", "as", "ld", "ld.bfd", "nm", "objcopy", "objdump", "ranlib", "readelf", "size", "strings", "strip"}
+	for _, tool := range binutilsTools {
+		symlinkPath := filepath.Join(binDir, "sh-elf-"+tool)
+		toolPath := filepath.Join(toolsDir, tool)
+		if _, err := a.fs.Stat(symlinkPath); os.IsNotExist(err) {
+			if _, err := a.fs.Stat(toolPath); err == nil {
+				// Create relative symlink: ../sh-elf/bin/tool
+				_ = a.fs.Symlink(filepath.Join("..", "sh-elf", "bin", tool), symlinkPath)
+			}
+		}
+	}
+
 	a.cfg.Path = p
 
 	lib := filepath.Join(p, "libgodc")
