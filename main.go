@@ -181,13 +181,15 @@ func (a *App) save() error {
 func (a *App) env() []string {
 	k := a.cfg.kos()
 	ccBase := filepath.Join(a.cfg.Path, "sh-elf")
+	gccPath := filepath.Join(ccBase, "bin", "sh-elf-gcc")
 	m := map[string]string{
 		"KOS_BASE":    k,
 		"KOS_CC_BASE": ccBase,
 		"KOS_PORTS":   filepath.Join(a.cfg.Path, "kos-ports"),
 		"KOS_ARCH":    "dreamcast",
 		"KOS_SUBARCH": "pristine",
-		"CC":          filepath.Join(ccBase, "bin", "sh-elf-gcc"),
+		"CC":          gccPath,
+		"KOS_CC":      gccPath,
 		"PATH":        filepath.Join(ccBase, "bin") + string(os.PathListSeparator) + filepath.Join(k, "utils", "build_wrappers") + string(os.PathListSeparator) + os.Getenv("PATH"),
 	}
 	for _, v := range os.Environ() {
