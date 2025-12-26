@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.7"
+	version = "0.2.8"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -667,12 +667,26 @@ func (a *App) Doctor() error {
 
 	// Library checks (required for linking)
 	libDir := filepath.Join(a.cfg.Path, "sh-elf", "sh-elf", "lib")
+	portsLibDir := filepath.Join(a.cfg.Path, "kos-ports", "lib")
 	libChecks := []struct {
 		name string
 		path string
 	}{
 		{"libc", filepath.Join(libDir, "libc.a")},
 		{"libm", filepath.Join(libDir, "libm.a")},
+	}
+	// kos-ports libraries (used by Makefile.tmpl)
+	portsLibChecks := []struct {
+		name string
+		path string
+	}{
+		{"libparallax", filepath.Join(portsLibDir, "libparallax.a")},
+		{"libjpeg", filepath.Join(portsLibDir, "libjpeg.a")},
+		{"libpng", filepath.Join(portsLibDir, "libpng.a")},
+		{"libz", filepath.Join(portsLibDir, "libz.a")},
+		{"libkmg", filepath.Join(portsLibDir, "libkmg.a")},
+		{"libwav", filepath.Join(portsLibDir, "libwav.a")},
+		{"libtremor", filepath.Join(portsLibDir, "libtremor.a")},
 	}
 
 	// System tools (should be in PATH)
@@ -707,6 +721,18 @@ func (a *App) Doctor() error {
 	// Check libraries
 	_, _ = fmt.Fprintln(a.stdout, "Libraries:")
 	for _, check := range libChecks {
+		status := "✗"
+		if _, err := a.fs.Stat(check.path); err == nil {
+			status = "✓"
+		} else {
+			missing = append(missing, check.name)
+		}
+		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+	}
+
+	// Check kos-ports libraries
+	_, _ = fmt.Fprintln(a.stdout, "kos-ports:")
+	for _, check := range portsLibChecks {
 		status := "✗"
 		if _, err := a.fs.Stat(check.path); err == nil {
 			status = "✓"
