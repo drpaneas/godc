@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.6"
+	version = "0.2.7"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -749,25 +749,72 @@ func (a *App) Doctor() error {
 	}
 	_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", emuStatus, "emulator", emuPath)
 
-	// Check environment (required by kos-cc wrapper and bin2o)
+	// Check environment by sourcing environ.sh
 	_, _ = fmt.Fprintln(a.stdout, "Environment:")
-	envBinDir := filepath.Join(a.cfg.Path, "sh-elf", "bin")
-	envChecks := []struct {
-		name string
-		path string
-	}{
-		{"KOS_CC", filepath.Join(envBinDir, "sh-elf-gcc")},
-		{"KOS_AS", filepath.Join(envBinDir, "sh-elf-as")},
-		{"KOS_LD", filepath.Join(envBinDir, "sh-elf-ld")},
-	}
-	for _, check := range envChecks {
-		status := "✗"
-		if _, err := a.fs.Stat(check.path); err == nil {
-			status = "✓"
+	environSh := filepath.Join(a.cfg.kos(), "environ.sh")
+	if _, err := a.fs.Stat(environSh); err == nil {
+		// Source environ.sh and print all env vars
+		cmd := fmt.Sprintf("source %s && env", environSh)
+		out, err := a.runner.Output("bash", "-c", cmd)
+		if err == nil {
+			envMap := make(map[string]string)
+			for _, line := range strings.Split(string(out), "\n") {
+				if i := strings.IndexByte(line, '='); i > 0 {
+					envMap[line[:i]] = line[i+1:]
+				}
+			}
+			// Check key environment variables that point to executables/files
+			envFileChecks := []string{"KOS_CC", "KOS_AS", "KOS_LD", "KOS_AR", "KOS_OBJCOPY", "KOS_STRIP", "KOS_GENROMFS"}
+			for _, name := range envFileChecks {
+				if path, ok := envMap[name]; ok && path != "" {
+					status := "✗"
+					if _, err := a.fs.Stat(path); err == nil {
+						status = "✓"
+					} else {
+						missing = append(missing, name)
+					}
+					_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, name, path)
+				}
+			}
+			// Show key directory variables
+			envDirChecks := []string{"KOS_BASE", "KOS_CC_BASE", "KOS_PORTS"}
+			for _, name := range envDirChecks {
+				if path, ok := envMap[name]; ok && path != "" {
+					status := "✗"
+					if _, err := a.fs.Stat(path); err == nil {
+						status = "✓"
+					} else {
+						missing = append(missing, name)
+					}
+					_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, name, path)
+				}
+			}
 		} else {
-			missing = append(missing, check.name)
+			_, _ = fmt.Fprintf(a.stdout, "  ⚠ Could not source environ.sh: %v\n", err)
 		}
-		_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+	} else {
+		// Fallback: check paths manually
+		envBinDir := filepath.Join(a.cfg.Path, "sh-elf", "bin")
+		envChecks := []struct {
+			name string
+			path string
+		}{
+			{"KOS_CC", filepath.Join(envBinDir, "sh-elf-gcc")},
+			{"KOS_AS", filepath.Join(envBinDir, "sh-elf-as")},
+			{"KOS_LD", filepath.Join(envBinDir, "sh-elf-ld")},
+			{"KOS_AR", filepath.Join(envBinDir, "sh-elf-ar")},
+			{"KOS_OBJCOPY", filepath.Join(envBinDir, "sh-elf-objcopy")},
+			{"KOS_STRIP", filepath.Join(envBinDir, "sh-elf-strip")},
+		}
+		for _, check := range envChecks {
+			status := "✗"
+			if _, err := a.fs.Stat(check.path); err == nil {
+				status = "✓"
+			} else {
+				missing = append(missing, check.name)
+			}
+			_, _ = fmt.Fprintf(a.stdout, "  %s %-14s %s\n", status, check.name, check.path)
+		}
 	}
 
 	// Show configuration
