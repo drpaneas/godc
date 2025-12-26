@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.5"
+	version = "0.2.6"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -180,6 +180,38 @@ func (a *App) save() error {
 
 func (a *App) env() []string {
 	k := a.cfg.kos()
+	environSh := filepath.Join(k, "environ.sh")
+
+	// Try to source environ.sh and capture all environment variables
+	if _, err := a.fs.Stat(environSh); err == nil {
+		// Source environ.sh and print all env vars
+		cmd := fmt.Sprintf("source %s && env", environSh)
+		out, err := a.runner.Output("bash", "-c", cmd)
+		if err == nil {
+			m := make(map[string]string)
+			for _, line := range strings.Split(string(out), "\n") {
+				if i := strings.IndexByte(line, '='); i > 0 {
+					m[line[:i]] = line[i+1:]
+				}
+			}
+			// Ensure PATH includes toolchain and build wrappers
+			ccBase := filepath.Join(a.cfg.Path, "sh-elf")
+			binDir := filepath.Join(ccBase, "bin")
+			wrappers := filepath.Join(k, "utils", "build_wrappers")
+			if path, ok := m["PATH"]; ok {
+				m["PATH"] = binDir + string(os.PathListSeparator) + wrappers + string(os.PathListSeparator) + path
+			} else {
+				m["PATH"] = binDir + string(os.PathListSeparator) + wrappers + string(os.PathListSeparator) + os.Getenv("PATH")
+			}
+			r := make([]string, 0, len(m))
+			for k, v := range m {
+				r = append(r, k+"="+v)
+			}
+			return r
+		}
+	}
+
+	// Fallback: manually construct environment if environ.sh doesn't exist or fails
 	ccBase := filepath.Join(a.cfg.Path, "sh-elf")
 	binDir := filepath.Join(ccBase, "bin")
 	gccPath := filepath.Join(binDir, "sh-elf-gcc")
