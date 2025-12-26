@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.0"
+	version = "0.2.2"
 	commit  = "unknown"
 	date    = "unknown"
 )
