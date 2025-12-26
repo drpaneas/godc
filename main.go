@@ -42,7 +42,7 @@ var tcFiles = map[string]string{
 
 // Build-time variables (injected via -ldflags)
 var (
-	version = "0.2.2"
+	version = "0.2.3"
 	commit  = "unknown"
 	date    = "unknown"
 )
@@ -455,26 +455,35 @@ func (a *App) Setup() error {
 		}
 	}
 
-	e := a.env()
-	// Pass CC as a Make variable to override any hardcoded compiler in the Makefile
-	ccPath := filepath.Join(p, "sh-elf", "bin", "sh-elf-gcc")
-	makeArgs := []string{"CC=" + ccPath}
-
-	_, _ = fmt.Fprintln(a.stdout, "Building...")
-	buildErr := a.sh("make", makeArgs, lib, e)
-	installErr := a.sh("make", append(makeArgs, "install"), lib, e)
-
-	// Create symlinks as fallback if build/install failed but pre-built libs exist
+	// Check if pre-built libgodc exists (included in toolchain tarball)
+	prebuiltLibgodc := filepath.Join(lib, "libgodc.a")
 	kosLib := filepath.Join(p, "kos", "lib")
 	_ = a.fs.MkdirAll(kosLib, 0755)
 
-	// Symlink libgodc.a and libgodcbegin.a
+	if _, err := a.fs.Stat(prebuiltLibgodc); err == nil {
+		// Pre-built libgodc exists, just create symlinks
+		_, _ = fmt.Fprintln(a.stdout, "Using pre-built libgodc...")
+	} else {
+		// No pre-built libs, need to build from source
+		e := a.env()
+		ccPath := filepath.Join(p, "sh-elf", "bin", "sh-elf-gcc")
+		makeArgs := []string{"CC=" + ccPath}
+
+		_, _ = fmt.Fprintln(a.stdout, "Building libgodc...")
+		if err := a.sh("make", makeArgs, lib, e); err != nil {
+			return fmt.Errorf("failed to build libgodc: %w", err)
+		}
+		if err := a.sh("make", append(makeArgs, "install"), lib, e); err != nil {
+			return fmt.Errorf("failed to install libgodc: %w", err)
+		}
+	}
+
+	// Create symlinks to kos/lib
 	for _, libName := range []string{"libgodc.a", "libgodcbegin.a"} {
 		dst := filepath.Join(kosLib, libName)
 		src := filepath.Join(lib, libName)
 		if _, err := a.fs.Stat(dst); os.IsNotExist(err) {
 			if _, err := a.fs.Stat(src); err == nil {
-				// Create relative symlink: ../../libgodc/libgodc.a
 				_ = a.fs.Symlink(filepath.Join("..", "..", "libgodc", libName), dst)
 			}
 		}
@@ -487,18 +496,6 @@ func (a *App) Setup() error {
 		if _, err := a.fs.Stat(libkosSrc); err == nil {
 			_ = a.fs.Symlink(filepath.Join("..", "..", "libgodc", "kos", "libkos.a"), libkosDst)
 		}
-	}
-
-	// Only fail if both build failed AND no pre-built libs exist
-	if buildErr != nil || installErr != nil {
-		prebuiltLibgodc := filepath.Join(lib, "libgodc.a")
-		if _, err := a.fs.Stat(prebuiltLibgodc); os.IsNotExist(err) {
-			if buildErr != nil {
-				return fmt.Errorf("failed to build libgodc: %w", buildErr)
-			}
-			return fmt.Errorf("failed to install libgodc: %w", installErr)
-		}
-		_, _ = fmt.Fprintln(a.stdout, "Using pre-built libgodc (symlinked)...")
 	}
 
 	// Update shell rc file
