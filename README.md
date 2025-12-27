@@ -16,10 +16,15 @@
 CLI for building Go programs for Sega Dreamcast.
 It uses [libgodc](https://drpaneas.github.io/libgodc/), a minimal Go runtime for the Dreamcast, along with [pre-built KOS](https://github.com/drpaneas/dreamcast-toolchain-builds) ready for coding.
 
+## Requirements
+
+- Go (1.25.3+)
+- `make`
+- `git`
+
 ## Install
 
 ```bash
-# First make sure you have Go properly installed
 go install github.com/drpaneas/godc@latest
 ```
 
