@@ -678,6 +678,15 @@ func (a *App) Update() error {
 	if err := a.sh("make", []string{"-C", lib, ccArg}, "", e); err != nil {
 		return fmt.Errorf("failed to build libgodc: %w", err)
 	}
+
+	// Remove symlinks before make install to avoid "same file" error
+	// (godc setup creates symlinks, but make install uses cp)
+	kosLib := filepath.Join(a.cfg.kos(), "lib")
+	for _, libName := range []string{"libgodc.a", "libgodcbegin.a", "libkos.a"} {
+		dst := filepath.Join(kosLib, libName)
+		_ = a.fs.Remove(dst) // ignore errors, file may not exist
+	}
+
 	if err := a.sh("make", []string{"-C", lib, ccArg, "install"}, "", e); err != nil {
 		return fmt.Errorf("failed to install libgodc: %w", err)
 	}
