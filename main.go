@@ -435,7 +435,7 @@ func (a *App) Setup() error {
 		stripComponents = 1
 	}
 
-	fmt.Fprintln(a.stdout, "Extracting...")
+	_, _ = fmt.Fprintln(a.stdout, "Extracting...")
 	if err := a.extractTarGz(tmp, p, stripComponents); err != nil {
 		return fmt.Errorf("failed to extract: %w", err)
 	}
