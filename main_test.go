@@ -973,8 +973,9 @@ func TestUpdatePullsIfExists(t *testing.T) {
 	app, fs, runner, _, _ := newTestApp()
 	app.cfg.Path = "/dc"
 
-	// libgodc exists
+	// libgodc exists as a git repository
 	fs.dirs[filepath.Join("/dc", "libgodc")] = nil
+	fs.dirs[filepath.Join("/dc", "libgodc", ".git")] = nil
 
 	err := app.Update()
 	if err != nil {
@@ -1023,6 +1024,37 @@ func TestUpdateBuildsLibgodc(t *testing.T) {
 	}
 	if makeCount != 3 {
 		t.Errorf("expected 3 make calls, got %d", makeCount)
+	}
+}
+
+func TestUpdateRecloneIfNotGitRepo(t *testing.T) {
+	app, fs, runner, _, _ := newTestApp()
+	app.cfg.Path = "/dc"
+
+	// libgodc exists but is NOT a git repository (no .git directory)
+	fs.dirs[filepath.Join("/dc", "libgodc")] = nil
+	// Notably, .git is NOT added
+
+	err := app.Update()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// First call should be git clone (not pull) since it's not a git repo
+	if len(runner.calls) < 1 {
+		t.Fatal("expected at least 1 call")
+	}
+	if runner.calls[0].name != "git" {
+		t.Errorf("expected git, got %s", runner.calls[0].name)
+	}
+	foundClone := false
+	for _, arg := range runner.calls[0].args {
+		if arg == "clone" {
+			foundClone = true
+		}
+	}
+	if !foundClone {
+		t.Errorf("expected clone in args (re-clone after removing non-git dir), got %v", runner.calls[0].args)
 	}
 }
 

@@ -650,8 +650,21 @@ func (a *App) Update() error {
 			return fmt.Errorf("failed to clone libgodc: %w", err)
 		}
 	} else {
-		if err := a.sh("git", []string{"-C", lib, "pull"}, "", nil); err != nil {
-			return fmt.Errorf("failed to pull libgodc: %w", err)
+		// Check if it's a git repository
+		gitDir := filepath.Join(lib, ".git")
+		if _, err := a.fs.Stat(gitDir); os.IsNotExist(err) {
+			// Not a git repo (e.g., extracted from tarball), remove and clone fresh
+			_, _ = fmt.Fprintln(a.stdout, "libgodc is not a git repository, re-cloning...")
+			if err := a.fs.RemoveAll(lib); err != nil {
+				return fmt.Errorf("failed to remove libgodc: %w", err)
+			}
+			if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
+				return fmt.Errorf("failed to clone libgodc: %w", err)
+			}
+		} else {
+			if err := a.sh("git", []string{"-C", lib, "pull"}, "", nil); err != nil {
+				return fmt.Errorf("failed to pull libgodc: %w", err)
+			}
 		}
 	}
 
