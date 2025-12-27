@@ -646,7 +646,8 @@ func (a *App) Update() error {
 		if !os.IsNotExist(err) {
 			return fmt.Errorf("failed to stat libgodc: %w", err)
 		}
-		if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
+		// Clone from parent directory to avoid cwd issues
+		if err := a.sh("git", []string{"clone", repo, lib}, a.cfg.Path, nil); err != nil {
 			return fmt.Errorf("failed to clone libgodc: %w", err)
 		}
 	} else {
@@ -658,7 +659,8 @@ func (a *App) Update() error {
 			if err := a.fs.RemoveAll(lib); err != nil {
 				return fmt.Errorf("failed to remove libgodc: %w", err)
 			}
-			if err := a.sh("git", []string{"clone", repo, lib}, "", nil); err != nil {
+			// Clone from parent directory (user may be inside the deleted dir)
+			if err := a.sh("git", []string{"clone", repo, lib}, a.cfg.Path, nil); err != nil {
 				return fmt.Errorf("failed to clone libgodc: %w", err)
 			}
 		} else {
