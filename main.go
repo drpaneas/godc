@@ -993,7 +993,11 @@ func (a *App) Env() {
 
 // Version prints the version
 func (a *App) Version() {
-	_, _ = fmt.Fprintf(a.stdout, "godc %s (commit: %s, built: %s)\n", version, commit, date)
+	if commit != "unknown" && date != "unknown" {
+		_, _ = fmt.Fprintf(a.stdout, "godc %s (commit: %s, built: %s)\n", version, commit, date)
+	} else {
+		_, _ = fmt.Fprintf(a.stdout, "godc %s\n", version)
+	}
 }
 
 // Clean removes generated build files from the current directory

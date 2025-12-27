@@ -1276,12 +1276,7 @@ func TestVersion(t *testing.T) {
 	if !strings.Contains(output, "godc") {
 		t.Errorf("expected 'godc' in output: %s", output)
 	}
-	if !strings.Contains(output, "commit:") {
-		t.Errorf("expected 'commit:' in output: %s", output)
-	}
-	if !strings.Contains(output, "built:") {
-		t.Errorf("expected 'built:' in output: %s", output)
-	}
+	// commit/date are only shown if known (not "unknown")
 }
 
 // --- Tests for Clean ---
