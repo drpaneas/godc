@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"text/template"
 	"time"
@@ -40,12 +41,36 @@ var tcFiles = map[string]string{
 	"linux/arm64":  "dreamcast-toolchain-" + tcVer + "-linux-aarch64.tar.gz",
 }
 
-// Build-time variables (injected via -ldflags)
+// Build-time variables (populated from VCS info or ldflags)
 var (
-	version = "0.2.9"
+	version = "dev"
 	commit  = "unknown"
 	date    = "unknown"
 )
+
+func init() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	// Use module version if available (e.g., v0.2.14)
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		version = info.Main.Version
+	}
+	// Extract VCS info
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			if len(setting.Value) >= 7 {
+				commit = setting.Value[:7]
+			} else {
+				commit = setting.Value
+			}
+		case "vcs.time":
+			date = setting.Value
+		}
+	}
+}
 
 // cfg holds the application configuration
 type cfg struct {
