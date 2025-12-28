@@ -34,6 +34,9 @@ var modTmpl string
 //go:embed templates/go.work.tmpl
 var workTmpl string
 
+//go:embed templates/vscode-settings.json.tmpl
+var vscodeTmpl string
+
 const tcVer = "gcc15.1.0-kos2.2.1"
 const tcURL = "https://github.com/drpaneas/dreamcast-toolchain-builds/releases/download/" + tcVer
 const repo = "https://github.com/drpaneas/libgodc.git"
@@ -318,6 +321,18 @@ func (a *App) Init() error {
 					return fmt.Errorf("failed to stat %s: %w", t.filename, err)
 				}
 			}
+		}
+	}
+
+	// Create .vscode directory and settings.json
+	vscodeDir := filepath.Join(cwd, ".vscode")
+	if err := a.fs.MkdirAll(vscodeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .vscode directory: %w", err)
+	}
+	vscodeSettings := filepath.Join(vscodeDir, "settings.json")
+	if _, err := a.fs.Stat(vscodeSettings); os.IsNotExist(err) {
+		if err := a.fs.WriteFile(vscodeSettings, []byte(vscodeTmpl), 0644); err != nil {
+			return fmt.Errorf("failed to write .vscode/settings.json: %w", err)
 		}
 	}
 
