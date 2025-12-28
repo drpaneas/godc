@@ -288,6 +288,9 @@ func (a *App) Init() error {
 	// Determine kos replace path: prefer local, fallback to remote
 	kosReplace := a.getKosReplacePath()
 
+	// Get libgodc path for go.work
+	libgodcPath := filepath.Join(a.cfg.Path, "libgodc")
+
 	templates := []struct {
 		filename string
 		content  string
@@ -296,7 +299,7 @@ func (a *App) Init() error {
 		{".Makefile", execTemplate(mkTmpl, map[string]string{"Name": name, "Module": name}), true}, // always overwrite to ensure compiler path is correct
 		{".gitignore", giTmpl, false},
 		{"go.mod", execTemplate(modTmpl, map[string]string{"Name": name, "Module": name, "KosReplace": kosReplace}), true}, // always overwrite to ensure correct module name
-		{"go.work", workTmpl, true}, // always overwrite to ensure correct workspace config
+		{"go.work", execTemplate(workTmpl, map[string]string{"LibgodcPath": libgodcPath}), true},                           // always overwrite to ensure correct workspace config
 	}
 
 	for _, t := range templates {
