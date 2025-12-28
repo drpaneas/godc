@@ -31,6 +31,9 @@ var giTmpl string
 //go:embed templates/go.mod.tmpl
 var modTmpl string
 
+//go:embed templates/go.work.tmpl
+var workTmpl string
+
 const tcVer = "gcc15.1.0-kos2.2.1"
 const tcURL = "https://github.com/drpaneas/dreamcast-toolchain-builds/releases/download/" + tcVer
 const repo = "https://github.com/drpaneas/libgodc.git"
@@ -293,6 +296,7 @@ func (a *App) Init() error {
 		{".Makefile", execTemplate(mkTmpl, map[string]string{"Name": name, "Module": name}), true}, // always overwrite to ensure compiler path is correct
 		{".gitignore", giTmpl, false},
 		{"go.mod", execTemplate(modTmpl, map[string]string{"Name": name, "Module": name, "KosReplace": kosReplace}), true}, // always overwrite to ensure correct module name
+		{"go.work", workTmpl, true}, // always overwrite to ensure correct workspace config
 	}
 
 	for _, t := range templates {
@@ -1007,9 +1011,9 @@ func (a *App) Clean() error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	// Files to remove: *.o *.elf romdisk.img .Makefile go.mod
+	// Files to remove: *.o *.elf romdisk.img .Makefile go.mod go.work
 	patterns := []string{"*.o", "*.elf"}
-	specificFiles := []string{"romdisk.img", ".Makefile", "go.mod"}
+	specificFiles := []string{"romdisk.img", ".Makefile", "go.mod", "go.work"}
 
 	// Remove files matching patterns
 	for _, pattern := range patterns {
