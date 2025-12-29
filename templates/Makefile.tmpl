@@ -4,13 +4,14 @@ include $(KOS_BASE)/Makefile.rules
 # -mfsrra/-mfsca use hardware reciprocal sqrt and sin/cos (10x faster)
 # -ffast-math allows aggressive FP optimizations (breaks IEEE compliance)
 # Default: Safe mode. Set GODC_FAST=1 for maximum performance.
+# -B tells GCC where to find sub-programs (as, ld) - needed for some toolchain builds
 ifdef GODC_FAST
 GCCGO_OPTS = -O3 -ml -m4-single -fno-split-stack -mfsrra -mfsca -ffast-math -funroll-loops
 else
 GCCGO_OPTS = -O2 -ml -m4-single -fno-split-stack -mfsrra -mfsca
 endif
 
-GCCGO = $(KOS_CC_BASE)/bin/sh-elf-gccgo $(GCCGO_OPTS) -I$(KOS_BASE)/lib -L$(KOS_BASE)/lib
+GCCGO = $(KOS_CC_BASE)/bin/sh-elf-gccgo $(GCCGO_OPTS) -B$(KOS_CC_BASE)/bin/ -I$(KOS_BASE)/lib -L$(KOS_BASE)/lib
 OUTPUT ?= $(TARGET).elf
 
 # Auto-detect romdisk directory
