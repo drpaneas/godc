@@ -558,6 +558,16 @@ func (a *App) Setup() error {
 		}
 	}
 
+	// Create unprefixed symlinks for binutils tools (needed by some GCC builds)
+	// GCC may look for 'as' instead of 'sh-elf-as' when using -B flag
+	for _, tool := range []string{"as", "ld", "ar", "nm", "objcopy", "objdump", "strip", "ranlib"} {
+		target := filepath.Join(binDir, tool)
+		source := "sh-elf-" + tool
+		if _, err := a.fs.Stat(target); os.IsNotExist(err) {
+			_ = a.fs.Symlink(source, target)
+		}
+	}
+
 	a.cfg.Path = p
 
 	lib := filepath.Join(p, "libgodc")
@@ -731,6 +741,17 @@ func (a *App) Update() error {
 			if err := a.sh("git", []string{"-C", lib, "pull"}, "", nil); err != nil {
 				return fmt.Errorf("failed to pull libgodc: %w", err)
 			}
+		}
+	}
+
+	// Ensure unprefixed symlinks exist for binutils tools (fix for older glibc systems)
+	binDir := filepath.Join(a.cfg.Path, "sh-elf", "bin")
+	binutilsTools := []string{"as", "ld", "ar", "nm", "objcopy", "objdump", "strip", "ranlib"}
+	for _, tool := range binutilsTools {
+		target := filepath.Join(binDir, tool)
+		source := "sh-elf-" + tool
+		if _, err := a.fs.Stat(target); os.IsNotExist(err) {
+			_ = a.fs.Symlink(source, target)
 		}
 	}
 
