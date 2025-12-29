@@ -55,11 +55,22 @@ KallistiOS environment loaded:
 ```bash
 mkdir my_game; cd my_game # Create a directory to work
 godc init     # Initialize it
-vim main.go   # Write you code
+vim main.go   # Write your code
 godc build    # Build
 godc run      # Run in emulator
 godc run --ip # Run on hardware via dc-tool-ip
+godc clean    # Remove generated build files
 ```
+
+## Update libgodc
+
+To update the libgodc runtime library to the latest version:
+
+```bash
+godc update
+```
+
+This pulls the latest libgodc from GitHub and rebuilds it. Use this when new features or fixes are added to libgodc.
 
 ## Custom Configuration (optional)
 
