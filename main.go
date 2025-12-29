@@ -47,6 +47,11 @@ var tcFiles = map[string]string{
 	"linux/arm64":  "dreamcast-toolchain-" + tcVer + "-linux-aarch64.tar.gz",
 }
 
+// Alternative tarball for older glibc (< 2.38)
+var tcFilesOldGlibc = map[string]string{
+	"linux/amd64": "dreamcast-toolchain-" + tcVer + "-linux-x86_64-ubuntu22.tar.gz",
+}
+
 // Build-time variables (populated from VCS info or ldflags)
 var (
 	version = "dev"
@@ -418,9 +423,21 @@ func (a *App) Setup() error {
 		return fmt.Errorf("failed to read %s: %w", p, err)
 	}
 
-	f := tcFiles[runtime.GOOS+"/"+runtime.GOARCH]
+	platform := runtime.GOOS + "/" + runtime.GOARCH
+	f := tcFiles[platform]
 	if f == "" {
 		return fmt.Errorf("unsupported platform: %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	// On Linux x86_64, check glibc version and use older tarball if needed
+	if platform == "linux/amd64" {
+		glibcVer := getGlibcVersion()
+		if glibcVer > 0 && glibcVer < 2.38 {
+			if altFile, ok := tcFilesOldGlibc[platform]; ok {
+				_, _ = fmt.Fprintf(a.stdout, "Detected glibc %.2f (< 2.38), using Ubuntu 22.04 compatible toolchain...\n", glibcVer)
+				f = altFile
+			}
+		}
 	}
 
 	tmp := filepath.Join(a.fs.TempDir(), f)
@@ -1123,6 +1140,26 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// getGlibcVersion returns the glibc version on Linux systems (e.g., 2.35, 2.38)
+// Returns 0.0 if detection fails or not on Linux
+func getGlibcVersion() float64 {
+	if runtime.GOOS != "linux" {
+		return 0.0
+	}
+	out, err := exec.Command("getconf", "GNU_LIBC_VERSION").Output()
+	if err != nil {
+		return 0.0
+	}
+	// Output is like "glibc 2.35" or "glibc 2.38"
+	parts := strings.Fields(string(out))
+	if len(parts) < 2 {
+		return 0.0
+	}
+	var ver float64
+	_, _ = fmt.Sscanf(parts[1], "%f", &ver)
+	return ver
 }
 
 // execTemplate executes a template with the given data
